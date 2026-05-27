@@ -62,14 +62,17 @@ with open(summary_path) as f:
 
 metrics = s.get("metrics", {})
 
-http_reqs = metrics.get("http_reqs", {}).get("values", {})
-http_req_duration = metrics.get("http_req_duration", {}).get("values", {})
-http_req_failed = metrics.get("http_req_failed", {}).get("values", {})
+http_reqs = metrics.get("http_reqs", {})
+http_req_duration = metrics.get("http_req_duration", {})
+http_req_failed = metrics.get("http_req_failed", {})
 
+# k6 summary-export puts values directly on metric (no "values" nesting).
+# http_req_failed uses "value" (0.0-1.0 fraction), not "rate".
 rps = http_reqs.get("rate", 0.0)
 total_requests = int(http_reqs.get("count", 0))
-total_errors = int(round(http_req_failed.get("rate", 0.0) * total_requests))
-error_rate_pct = round(http_req_failed.get("rate", 0.0) * 100, 4)
+fail_fraction = http_req_failed.get("value", 0.0)
+total_errors = int(round(fail_fraction * total_requests))
+error_rate_pct = round(fail_fraction * 100, 4)
 p50 = http_req_duration.get("med", None)
 p95 = http_req_duration.get("p(95)", None)
 p99 = http_req_duration.get("p(99)", None)
