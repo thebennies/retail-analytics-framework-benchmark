@@ -61,3 +61,15 @@ services:
       pgbouncer:
         condition: service_healthy
     profiles: [fastapi]
+
+  generator:
+    build:
+      context: ../generator
+    container_name: bench-generator
+    environment:
+      GENERATOR_DSN: postgresql://${POSTGRES_USER:-bench}:${POSTGRES_PASSWORD:-bench}@postgres:5432/${POSTGRES_DB:-benchmark}
+    networks: [bench]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: [generator]
