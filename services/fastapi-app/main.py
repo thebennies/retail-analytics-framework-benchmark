@@ -1,8 +1,16 @@
-"""FastAPI service — Phase 1a walking skeleton.
+"""FastAPI service — Phase 1b full benchmark surface.
 
-Endpoints:
-  GET /health                        — liveness + pool size echo
-  GET /benchmark/daily-sales         — single aggregation query, uniform response
+Endpoints (spec section 5):
+  GET /health
+  GET /benchmark/daily-sales
+  GET /benchmark/sales-by-location
+  GET /benchmark/sales-by-product
+  GET /benchmark/sales-by-payment
+  GET /benchmark/hourly-sales
+  GET /benchmark/top-products
+  GET /benchmark/location-product-matrix
+  GET /benchmark/discount-impact
+  GET /benchmark/full-summary    (sequential, NOT asyncio.gather)
 """
 from __future__ import annotations
 
@@ -11,6 +19,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import asyncpg
 from fastapi import FastAPI
@@ -21,6 +30,17 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 POOL_MIN = int(os.environ.get("POOL_MIN", "5"))
 POOL_MAX = int(os.environ.get("POOL_MAX", "25"))
 FRAMEWORK = "fastapi"
+
+ENDPOINT_TO_QUERY = {
+    "daily-sales": "daily-sales",
+    "sales-by-location": "sales-by-location",
+    "sales-by-product": "sales-by-product",
+    "sales-by-payment": "sales-by-payment",
+    "hourly-sales": "hourly-sales",
+    "top-products": "top-products",
+    "location-product-matrix": "location-product-matrix",
+    "discount-impact": "discount-impact",
+}
 
 
 @asynccontextmanager
@@ -44,21 +64,43 @@ def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
+def _coerce(v):
+    if v is None:
+        return None
+    if isinstance(v, Decimal):
+        return float(v)
+    if hasattr(v, "isoformat"):
+        return v.isoformat()
+    if isinstance(v, (int, float, str, bool)):
+        return v
+    return str(v)
+
+
 def _rows_to_jsonable(rows: list[asyncpg.Record]) -> list[dict]:
-    """asyncpg Records → list[dict] with Decimal/Date coerced to JSON-safe types."""
-    out: list[dict] = []
-    for r in rows:
-        d: dict = {}
-        for k, v in r.items():
-            if hasattr(v, "isoformat"):
-                d[k] = v.isoformat()
-            elif isinstance(v, (int, float, str, bool)) or v is None:
-                d[k] = v
-            else:
-                # Decimal → float (sufficient for Phase 1a; Phase 1b adds proper handling)
-                d[k] = float(v)
-        out.append(d)
-    return out
+    return [{k: _coerce(v) for k, v in r.items()} for r in rows]
+
+
+async def _run_query(pool: asyncpg.Pool, sql_text: str) -> tuple[list[dict], float]:
+    """Acquire → fetch → release. Returns (rows, query_time_ms)."""
+    async with pool.acquire() as conn:
+        q0 = time.perf_counter()
+        rows = await conn.fetch(sql_text)
+        q1 = time.perf_counter()
+    return _rows_to_jsonable(rows), round((q1 - q0) * 1000, 3)
+
+
+def _envelope(task: str, exec_ms: float, query_ms: float,
+              rows: list[dict] | dict, req_id: str) -> dict:
+    return {
+        "framework": FRAMEWORK,
+        "task": task,
+        "execution_time_ms": round(exec_ms, 3),
+        "query_time_ms": query_ms,
+        "rows_returned": len(rows) if isinstance(rows, list) else 1,
+        "result": rows,
+        "timestamp": _utcnow_iso(),
+        "request_id": req_id,
+    }
 
 
 @app.get("/health")
@@ -67,32 +109,57 @@ async def health() -> dict:
     return {
         "status": "ok",
         "framework": FRAMEWORK,
-        "db_pool_size": pool.get_max_size(),
-        "db_pool_min": pool.get_min_size(),
+        "db_pool_max_per_worker": pool.get_max_size(),
+        "db_pool_min_per_worker": pool.get_min_size(),
+        "uvicorn_workers_expected": 4,
+        "total_client_pool_target": 4 * pool.get_max_size(),
     }
 
 
-@app.get("/benchmark/daily-sales")
-async def daily_sales() -> dict:
+# Bind one route per query via a factory so we don't duplicate boilerplate.
+def _register_query_endpoint(path_name: str, query_key: str) -> None:
+    sql_text = QUERIES[query_key]
+
+    @app.get(f"/benchmark/{path_name}", name=f"benchmark_{path_name}")
+    async def _handler():
+        pool: asyncpg.Pool = app.state.pool
+        req_id = str(uuid.uuid4())
+        t0 = time.perf_counter()
+        rows, q_ms = await _run_query(pool, sql_text)
+        t1 = time.perf_counter()
+        return _envelope(path_name, (t1 - t0) * 1000, q_ms, rows, req_id)
+
+
+for _p, _q in ENDPOINT_TO_QUERY.items():
+    _register_query_endpoint(_p, _q)
+
+
+@app.get("/benchmark/full-summary")
+async def full_summary() -> dict:
+    """Run all 8 queries SEQUENTIALLY (spec section 5).
+
+    DO NOT replace with asyncio.gather — that violates spec queueing semantics.
+    See test_full_summary_sequential.py for the enforcement check.
+    """
     pool: asyncpg.Pool = app.state.pool
-    sql = QUERIES["daily-sales"]
     req_id = str(uuid.uuid4())
-
     t0 = time.perf_counter()
-    async with pool.acquire() as conn:
-        q0 = time.perf_counter()
-        rows = await conn.fetch(sql)
-        q1 = time.perf_counter()
-    result = _rows_to_jsonable(rows)
+    sub_results: dict[str, dict] = {}
+    total_query_ms = 0.0
+    for path_name, query_key in ENDPOINT_TO_QUERY.items():
+        sql_text = QUERIES[query_key]
+        rows, q_ms = await _run_query(pool, sql_text)
+        total_query_ms += q_ms
+        sub_results[path_name] = {
+            "rows_returned": len(rows),
+            "query_time_ms": q_ms,
+            "result": rows,
+        }
     t1 = time.perf_counter()
-
-    return {
-        "framework": FRAMEWORK,
-        "task": "daily-sales",
-        "execution_time_ms": round((t1 - t0) * 1000, 3),
-        "query_time_ms": round((q1 - q0) * 1000, 3),
-        "rows_returned": len(result),
-        "result": result,
-        "timestamp": _utcnow_iso(),
-        "request_id": req_id,
-    }
+    return _envelope(
+        "full-summary",
+        (t1 - t0) * 1000,
+        round(total_query_ms, 3),
+        sub_results,
+        req_id,
+    )
