@@ -6,6 +6,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: bench-postgres
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-benchmark}
       POSTGRES_USER: ${POSTGRES_USER:-bench}
@@ -13,6 +14,7 @@ services:
     volumes:
       - ../database/pgdata:/var/lib/postgresql/data
       - ../database/init:/docker-entrypoint-initdb.d:ro
+      - ../database/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     networks: [bench]
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-bench}", "-d", "${POSTGRES_DB:-benchmark}"]
