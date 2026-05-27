@@ -75,3 +75,10 @@ npm-debug.log*
 # Docker / Local
 # ============================================
 .local/
+
+# Local database data
+database/pgdata/
+
+# Benchmark results
+results/results.db
+results/raw/

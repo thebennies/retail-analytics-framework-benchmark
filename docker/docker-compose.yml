@@ -1,0 +1,63 @@
+networks:
+  bench:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bench-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-benchmark}
+      POSTGRES_USER: ${POSTGRES_USER:-bench}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bench}
+    volumes:
+      - ../database/pgdata:/var/lib/postgresql/data
+      - ../database/init:/docker-entrypoint-initdb.d:ro
+    networks: [bench]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-bench}", "-d", "${POSTGRES_DB:-benchmark}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: bench-pgbouncer
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-benchmark}
+      DB_USER: ${POSTGRES_USER:-bench}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-bench}
+      POOL_MODE: ${PGBOUNCER_POOL_MODE:-transaction}
+      DEFAULT_POOL_SIZE: ${PGBOUNCER_DEFAULT_POOL_SIZE:-100}
+      MAX_CLIENT_CONN: ${PGBOUNCER_MAX_CLIENT_CONN:-15000}
+      LISTEN_PORT: 5432
+      AUTH_TYPE: scram-sha-256
+    ports:
+      - "6432:5432"
+    networks: [bench]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 5432"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  fastapi:
+    build:
+      context: ../services/fastapi-app
+      dockerfile: Dockerfile
+    container_name: bench-fastapi
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bench}:${POSTGRES_PASSWORD:-bench}@pgbouncer:5432/${POSTGRES_DB:-benchmark}
+      FASTAPI_PORT: ${FASTAPI_PORT:-8001}
+    ports:
+      - "${FASTAPI_PORT:-8001}:8001"
+    networks: [bench]
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+    profiles: [fastapi]
