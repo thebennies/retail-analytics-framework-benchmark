@@ -1,0 +1,77 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Env / Secrets
+.env
+.env.*
+!.env.example
+
+# ============================================
+# Svelte / Frontend (Node.js)
+# ============================================
+node_modules/
+dist/
+.vite/
+.svelte-kit/
+package-lock.json
+
+# ============================================
+# Fastify (Node.js backend)
+# ============================================
+*.tsbuildinfo
+
+# ============================================
+# FastAPI (Python backend)
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+.python-version
+.venv/
+venv/
+env/
+*.pot
+*.mo
+
+# ============================================
+# Axum (Rust backend)
+# ============================================
+target/
+**/*.rs.bk
+Cargo.lock
+
+# ============================================
+# Testing / Coverage
+# ============================================
+coverage/
+htmlcov/
+.coverage
+.coverage.*
+.nyc_output/
+test-results/
+
+# ============================================
+# Logs
+# ============================================
+logs/
+*.log
+npm-debug.log*
+
+# ============================================
+# Docker / Local
+# ============================================
+.local/
