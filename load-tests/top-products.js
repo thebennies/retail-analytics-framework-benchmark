@@ -3,7 +3,7 @@ import { check } from 'k6';
 import { buildOptions } from './_shared-options.js';
 
 const TARGET_URL = __ENV.TARGET_URL || 'http://localhost:8001';
-const ENDPOINT_PATH = '/benchmark/daily-sales';
+const ENDPOINT_PATH = '/benchmark/top-products';
 
 export const options = buildOptions();
 
