@@ -56,9 +56,12 @@ services:
   fastapi:
     cpuset: "${SVC_CPUSET}"
     mem_limit: 2g
+  axum:
+    cpuset: "${SVC_CPUSET}"
+    mem_limit: 2g
 YAML
 
-# fastify + axum added to override when they appear in base compose (Phase 2).
+# fastify added to override when it appears in base compose (Phase 2b).
 
 echo "${K6_CPUSET}" > "${REPO_ROOT}/.k6-cpuset"
 echo "[cpu-pin] wrote ${OVERRIDE_FILE}"

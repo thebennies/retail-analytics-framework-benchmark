@@ -1,0 +1,33 @@
+[package]
+name = "axum-app"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "axum-app"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net"] }
+axum = { version = "0.7", features = ["macros"] }
+sqlx = { version = "0.8", default-features = false, features = [
+  "runtime-tokio-rustls", "postgres", "macros", "chrono", "bigdecimal", "uuid",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+anyhow = "1"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace"] }
+bigdecimal = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+opt-level = 3
+strip = "symbols"
+panic = "abort"
