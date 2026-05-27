@@ -12,7 +12,7 @@ echo "[pg-config] host RAM=${HOST_RAM_MB}MB, postgres container budget=${PG_RAM_
 
 SHARED_BUFFERS_MB=$(( PG_RAM_MB / 4 ))
 EFFECTIVE_CACHE_MB=$(( PG_RAM_MB * 3 / 4 ))
-WORK_MEM_MB=16
+WORK_MEM_MB=64
 MAINT_MEM_MB=512
 MAX_CONN=500
 

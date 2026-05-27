@@ -64,7 +64,7 @@ impl QueryStore {
 
 fn parse_name_marker(line: &str) -> Option<String> {
     let line = line.trim_start();
-    let rest = line.strip_prefix('--')?.trim_start();
+    let rest = line.strip_prefix("--")?.trim_start();
     let rest = rest.strip_prefix("@name:")?;
     let name = rest.trim();
     if name.is_empty() || name.contains(char::is_whitespace) {

@@ -14,7 +14,6 @@ pub async fn init_pool(database_url: &str, max_connections: u32) -> Result<PgPoo
         .min_connections(5)
         .acquire_timeout(Duration::from_secs(30))
         .test_before_acquire(false)
-        .statement_cache_capacity(0)
         .connect(database_url)
         .await
         .context("connecting to database")
