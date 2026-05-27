@@ -82,3 +82,8 @@ database/pgdata/
 # Benchmark results
 results/results.db
 results/raw/
+
+# Generated configs
+database/postgresql.conf
+docker/docker-compose.override.yml
+.k6-cpuset
