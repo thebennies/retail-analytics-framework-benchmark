@@ -158,29 +158,33 @@ with open(summary_path) as f:
 metrics = s.get("metrics", {})
 
 # k6 summary-export puts values directly on the metric object.
-http_reqs = metrics.get("http_reqs", {})
-http_req_duration = metrics.get("http_req_duration", {})
+# We REQUIRE measure-tagged submetrics for fair comparison.
+http_reqs_measure = metrics.get("http_reqs{phase:measure}", {})
+http_req_duration_measure = metrics.get("http_req_duration{phase:measure}", {})
 http_req_failed_measure = metrics.get("http_req_failed{phase:measure}", {})
 
-rps = http_reqs.get("rate", 0.0)
-total_requests = int(http_reqs.get("count", 0))
-# Use phase:measure tagged fail rate if available, else aggregate.
-fail_fraction = http_req_failed_measure.get("value", None)
-if fail_fraction is None:
-    fail_fraction = metrics.get("http_req_failed", {}).get("value", 0.0)
-total_errors = int(round(fail_fraction * total_requests))
+# Fail loudly if measure-tagged submetrics are missing (thresholds not emitted)
+if http_reqs_measure is None or http_req_duration_measure is None:
+    print("[parse] ERROR: measure-phase submetrics not found. k6 thresholds may be misconfigured.", file=sys.stderr)
+    sys.exit(1)
+
+# Use only measure-phase data
+measure_count = int(http_reqs_measure.get("count", 0))
+if measure_count == 0:
+    print("[parse] ERROR: no requests in measure phase", file=sys.stderr)
+    sys.exit(1)
+
+# RPS computed from measure-phase count and duration
+rps = measure_count / float(duration_s)
+total_requests = measure_count  # Store measure-phase count as total
+fail_fraction = http_req_failed_measure.get("value", 0.0)
+total_errors = int(round(fail_fraction * measure_count))
 error_rate_pct = round(fail_fraction * 100, 4)
 
-# Use measure-tagged duration if available.
-duration_measure = metrics.get("http_req_duration{phase:measure}", {})
-if duration_measure:
-    p50 = duration_measure.get("med", None)
-    p95 = duration_measure.get("p(95)", None)
-    p99 = duration_measure.get("p(99)", None)
-else:
-    p50 = http_req_duration.get("med", None)
-    p95 = http_req_duration.get("p(95)", None)
-    p99 = http_req_duration.get("p(99)", None)
+# Use measure-tagged duration percentiles
+p50 = http_req_duration_measure.get("med", None)
+p95 = http_req_duration_measure.get("p(95)", None)
+p99 = http_req_duration_measure.get("p(99)", None)
 
 # RSS CSV: skip first warmup_s seconds for AVG.
 rss_vals = []
