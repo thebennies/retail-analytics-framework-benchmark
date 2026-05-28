@@ -6,7 +6,6 @@
 'use strict';
 
 const cluster = require('cluster');
-const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 
@@ -27,27 +26,32 @@ if (cluster.isPrimary) {
 }
 
 async function startWorker() {
-  const fastify = require('fastify')({ logger: false });
-
-  // ── pg type parser overrides ──
+  // ── pg type parser overrides (MUST be before Pool creation) ──
+  const pg = require('pg');
+  const types = pg.types;
+  // INT8 / BIGINT (OID 20): parse as int to match FastAPI/Axum integer output
+  types.setTypeParser(20, (val) => parseInt(val, 10));
+  // INT4 (OID 23): ensure int
+  types.setTypeParser(23, (val) => parseInt(val, 10));
+  // INT2 (OID 21): ensure int
+  types.setTypeParser(21, (val) => parseInt(val, 10));
   // NUMERIC (OID 1700): parse as float to match FastAPI Decimal→float / Axum BigDecimal→f64
-  const { types } = require('pg');
   types.setTypeParser(1700, (val) => parseFloat(val));
-  // DATE (OID 1082): keep as raw string 'YYYY-MM-DD' (node-postgres would parse to JS Date in local TZ)
+  // DATE (OID 1082): keep as raw string 'YYYY-MM-DD'
   types.setTypeParser(1082, (val) => val);
-  // TIMESTAMPTZ (OID 1184): keep as string — already ISO with Z
+  // TIMESTAMPTZ (OID 1184): keep as string
   types.setTypeParser(1184, (val) => val);
   // TIMESTAMP (OID 1114): keep as string
   types.setTypeParser(1114, (val) => val);
 
+  const fastify = require('fastify')({ logger: false });
+
   // ── Pool ──
-  const { Pool } = require('pg');
-  const pool = new Pool({
+  const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
     max: POOL_MAX,
     min: POOL_MIN,
     // No named prepared statements — PgBouncer transaction mode breaks them.
-    // pg Pool.query() defaults to unnamed prepared statements which work fine.
   });
 
   pool.on('error', (err) => console.error('[fastify] pool error', err.message));
