@@ -29,7 +29,7 @@ export function buildOptions() {
       'http_req_duration{phase:measure}': ['avg>0'],
       'http_reqs{phase:measure}': ['count>0'],
     },
-    discardResponseBodies: false,
+    discardResponseBodies: true,
     summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(50)', 'p(95)', 'p(99)'],
   };
 }
