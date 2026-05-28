@@ -1,0 +1,16 @@
+{
+  "name": "bench-fastify",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fastify service for sales-stack-benchmark (Phase 2b)",
+  "type": "commonjs",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "fastify": "^5",
+    "pg": "^8",
+    "dotenv": "^16"
+  }
+}

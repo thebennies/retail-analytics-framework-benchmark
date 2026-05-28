@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 2a parity gate: diff axum vs fastapi for every /benchmark/* endpoint.
+# Phase 2b parity gate: diff fastapi vs fastify vs axum for every /benchmark/* endpoint.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,6 +19,10 @@ ENDPOINTS=(
   "discount-impact"
   "full-summary"
 )
+
+# framework -> port
+declare -A FW_PORTS=( [fastapi]=8001 [fastify]=8002 [axum]=8003 )
+FRAMEWORKS=( fastapi fastify axum )
 
 log() { printf '[parity] %s\n' "$*" >&2; }
 
@@ -49,34 +53,36 @@ docker compose -f "${COMPOSE_FILE}" exec -T postgres psql -U bench -d benchmark 
   "SELECT pg_prewarm('transactions'); SELECT pg_prewarm('transaction_items');" >/dev/null 2>&1 || true
 
 # Stop any running services
-docker compose -f "${COMPOSE_FILE}" --profile fastapi stop fastapi >/dev/null 2>&1 || true
-docker compose -f "${COMPOSE_FILE}" --profile axum stop axum >/dev/null 2>&1 || true
+for fw in "${FRAMEWORKS[@]}"; do
+  docker compose -f "${COMPOSE_FILE}" --profile "${fw}" stop "${fw}" >/dev/null 2>&1 || true
+done
 
-# ---- FastAPI ----
-"${REPO_ROOT}/services/fastapi-app/prebuild.sh"
-log "start fastapi"
-docker compose -f "${COMPOSE_FILE}" --profile fastapi up -d --build fastapi
-wait_health "http://localhost:8001/health" 60 || { log "FATAL: fastapi /health timeout"; exit 1; }
-capture_endpoints "fastapi" 8001
-docker compose -f "${COMPOSE_FILE}" --profile fastapi stop fastapi
+# ---- Capture each framework ----
+for fw in "${FRAMEWORKS[@]}"; do
+  port="${FW_PORTS[$fw]}"
+  "${REPO_ROOT}/services/${fw}-app/prebuild.sh" 2>/dev/null || true
+  log "start ${fw}"
+  docker compose -f "${COMPOSE_FILE}" --profile "${fw}" up -d --build "${fw}"
+  wait_health "http://localhost:${port}/health" 60 || { log "FATAL: ${fw} /health timeout"; exit 1; }
+  capture_endpoints "${fw}" "${port}"
+  docker compose -f "${COMPOSE_FILE}" --profile "${fw}" stop "${fw}"
+done
 
-# ---- Axum ----
-"${REPO_ROOT}/services/axum-app/prebuild.sh"
-log "start axum"
-docker compose -f "${COMPOSE_FILE}" --profile axum up -d --build axum
-wait_health "http://localhost:8003/health" 60 || { log "FATAL: axum /health timeout"; exit 1; }
-capture_endpoints "axum" 8003
-docker compose -f "${COMPOSE_FILE}" --profile axum stop axum
-
-# ---- Diff ----
+# ---- Diff: baseline=fastapi vs each candidate ----
 PASS=0
 FAIL=0
 FAILED=()
 for ep in "${ENDPOINTS[@]}"; do
-  if python3 "${SCRIPT_DIR}/parity_diff.py" \
-      --endpoint "${ep}" \
-      --baseline "${RAW_DIR}/parity-fastapi-${ep}.json" \
-      --candidate "${RAW_DIR}/parity-axum-${ep}.json"; then
+  ok=true
+  for fw in fastify axum; do
+    if ! python3 "${SCRIPT_DIR}/parity_diff.py" \
+        --endpoint "${ep}" \
+        --baseline "${RAW_DIR}/parity-fastapi-${ep}.json" \
+        --candidate "${RAW_DIR}/parity-${fw}-${ep}.json"; then
+      ok=false
+    fi
+  done
+  if $ok; then
     PASS=$((PASS+1))
   else
     FAIL=$((FAIL+1))
@@ -86,7 +92,7 @@ done
 
 echo
 if [ "${FAIL}" -eq 0 ]; then
-  echo "OK ${PASS}/9 endpoints parity"
+  echo "OK ${PASS}/9 endpoints parity (fastapi vs fastify vs axum)"
   exit 0
 else
   echo "FAIL ${PASS}/9 endpoints parity. Failed: ${FAILED[*]}"

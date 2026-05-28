@@ -89,6 +89,31 @@ services:
       retries: 20
     profiles: [axum]
 
+  fastify:
+    build:
+      context: ../services/fastify-app
+      dockerfile: Dockerfile
+    container_name: bench-fastify
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bench}:${POSTGRES_PASSWORD:-bench}@pgbouncer:5432/${POSTGRES_DB:-benchmark}
+      QUERIES_PATH: /app/shared-queries.sql
+      FASTIFY_PORT: 8002
+      POOL_MAX: 25
+      POOL_MIN: 5
+      SERVICE_WORKERS: 4
+    ports:
+      - "${FASTIFY_PORT:-8002}:8002"
+    networks: [bench]
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8002/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    profiles: [fastify]
+
   generator:
     build:
       context: ../generator

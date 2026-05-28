@@ -59,6 +59,9 @@ services:
   axum:
     cpuset: "${SVC_CPUSET}"
     mem_limit: 2g
+  fastify:
+    cpuset: "${SVC_CPUSET}"
+    mem_limit: 2g
 YAML
 
 # fastify added to override when it appears in base compose (Phase 2b).
