@@ -272,10 +272,13 @@ def generate_and_load(
 ) -> None:
     """Generate all 10M transactions + line items and COPY into DB.
 
-    Two-pass strategy: generate all data in memory, then COPY transactions,
-    then COPY transaction_items. psycopg doesn't support two simultaneous
-    COPY operations on the same connection.
+    Streaming strategy (fixes M-24): generate and COPY in chunks of
+    CHUNK_SIZE rows to bound peak memory. Items are generated alongside
+    their parent transaction so totals are computed correctly, then both
+    are written in batched COPY operations.
     """
+    CHUNK_SIZE = 100_000  # Rows per COPY batch
+
     print("[generate] flattening + shuffling 10M slots", file=sys.stderr)
     flat: list[tuple[int, int, int]] = []
     for b in allocation:
@@ -283,88 +286,91 @@ def generate_and_load(
     assert len(flat) == TOTAL_TRANSACTIONS
     rng.shuffle(flat)
 
-    print("[generate] generating row data", file=sys.stderr)
+    print("[generate] generating + COPYing row data (streaming, chunked)", file=sys.stderr)
     products_only_ids = [pid for pid, _ in product_rows]
     price_by_id = {pid: bp for pid, bp in product_rows}
 
-    # Pre-generate all row data.
-    tx_rows: list[tuple] = []
-    item_rows: list[tuple] = []
+    pbar = tqdm(total=TOTAL_TRANSACTIONS, unit="tx", smoothing=0.1)
     tx_id = 1
     item_id = 1
+    total_tx = 0
+    total_items = 0
 
-    pbar = tqdm(total=TOTAL_TRANSACTIONS, unit="tx", smoothing=0.1)
-    for idx, (weekday, hour, cart_size) in enumerate(flat):
-        ts = random_timestamp_in_bucket(
-            rng,
-            Bucket(weekday, hour, cart_size, 0, 0.0),
-            weekday_dates,
-        )
-        loc_id = rng.choice(location_ids)
-        pm_id = rng.choice(payment_method_ids)
+    for chunk_start in range(0, len(flat), CHUNK_SIZE):
+        chunk = flat[chunk_start:chunk_start + CHUNK_SIZE]
+        tx_rows: list[tuple] = []
+        item_rows: list[tuple] = []
 
-        chosen_pids = rng.choices(products_only_ids, k=cart_size)
-        total_amount = Decimal("0.00")
-        total_discount = Decimal("0.00")
-        for pid in chosen_pids:
-            qty = rng.choices([1, 2, 3], weights=[80, 15, 5], k=1)[0]
-            unit_price = price_by_id[pid]
-            if rng.random() < 0.20:
-                discount_pct = Decimal(f"{rng.uniform(0.05, 0.15):.4f}")
-                line_discount = (unit_price * Decimal(qty) * discount_pct
-                                 ).quantize(Decimal("0.01"))
-            else:
-                line_discount = Decimal("0.00")
-            subtotal = (unit_price * Decimal(qty) - line_discount
-                        ).quantize(Decimal("0.01"))
-            item_rows.append((item_id, tx_id, pid, qty,
-                              unit_price, line_discount, subtotal))
-            total_amount += subtotal
-            total_discount += line_discount
-            item_id += 1
+        for weekday, hour, cart_size in chunk:
+            ts = random_timestamp_in_bucket(
+                rng,
+                Bucket(weekday, hour, cart_size, 0, 0.0),
+                weekday_dates,
+            )
+            loc_id = rng.choice(location_ids)
+            pm_id = rng.choice(payment_method_ids)
 
-        tx_rows.append((tx_id, ts, loc_id, pm_id,
-                         total_amount, total_discount, cart_size))
-        tx_id += 1
+            chosen_pids = rng.choices(products_only_ids, k=cart_size)
+            total_amount = Decimal("0.00")
+            total_discount = Decimal("0.00")
+            for pid in chosen_pids:
+                qty = rng.choices([1, 2, 3], weights=[80, 15, 5], k=1)[0]
+                unit_price = price_by_id[pid]
+                if rng.random() < 0.20:
+                    discount_pct = Decimal(f"{rng.uniform(0.05, 0.15):.4f}")
+                    line_discount = (unit_price * Decimal(qty) * discount_pct
+                                     ).quantize(Decimal("0.01"))
+                else:
+                    line_discount = Decimal("0.00")
+                subtotal = (unit_price * Decimal(qty) - line_discount
+                            ).quantize(Decimal("0.01"))
+                item_rows.append((item_id, tx_id, pid, qty,
+                                  unit_price, line_discount, subtotal))
+                total_amount += subtotal
+                total_discount += line_discount
+                item_id += 1
 
-        if idx % 100_000 == 0:
-            pbar.update(100_000 if idx > 0 else 0)
-    pbar.update(TOTAL_TRANSACTIONS - pbar.n)
+            tx_rows.append((tx_id, ts, loc_id, pm_id,
+                             total_amount, total_discount, cart_size))
+            tx_id += 1
+
+        # COPY this chunk's transactions
+        with conn.cursor() as cur:
+            with cur.copy(
+                "COPY transactions (id, transaction_time, location_id, "
+                "payment_method_id, total_amount, total_discount, item_count) "
+                "FROM STDIN WITH (FORMAT BINARY)"
+            ) as cp:
+                cp.set_types([
+                    "bigint", "timestamptz", "bigint", "bigint",
+                    "numeric", "numeric", "integer",
+                ])
+                for row in tx_rows:
+                    cp.write_row(row)
+        conn.commit()
+
+        # COPY this chunk's items
+        with conn.cursor() as cur:
+            with cur.copy(
+                "COPY transaction_items (id, transaction_id, product_id, "
+                "quantity, unit_price, line_discount, subtotal) "
+                "FROM STDIN WITH (FORMAT BINARY)"
+            ) as cp:
+                cp.set_types([
+                    "bigint", "bigint", "bigint", "integer",
+                    "numeric", "numeric", "numeric",
+                ])
+                for row in item_rows:
+                    cp.write_row(row)
+        conn.commit()
+
+        total_tx += len(tx_rows)
+        total_items += len(item_rows)
+        pbar.update(len(chunk))
+
     pbar.close()
 
-    print(f"[generate] generated {len(tx_rows):,} tx + {len(item_rows):,} items", file=sys.stderr)
-
-    # Pass 1: COPY transactions.
-    print("[generate] COPY transactions", file=sys.stderr)
-    with conn.cursor() as cur:
-        with cur.copy(
-            "COPY transactions (id, transaction_time, location_id, "
-            "payment_method_id, total_amount, total_discount, item_count) "
-            "FROM STDIN WITH (FORMAT BINARY)"
-        ) as cp:
-            cp.set_types([
-                "bigint", "timestamptz", "bigint", "bigint",
-                "numeric", "numeric", "integer",
-            ])
-            for row in tx_rows:
-                cp.write_row(row)
-    conn.commit()
-
-    # Pass 2: COPY transaction_items.
-    print("[generate] COPY transaction_items", file=sys.stderr)
-    with conn.cursor() as cur:
-        with cur.copy(
-            "COPY transaction_items (id, transaction_id, product_id, "
-            "quantity, unit_price, line_discount, subtotal) "
-            "FROM STDIN WITH (FORMAT BINARY)"
-        ) as cp:
-            cp.set_types([
-                "bigint", "bigint", "bigint", "integer",
-                "numeric", "numeric", "numeric",
-            ])
-            for row in item_rows:
-                cp.write_row(row)
-    conn.commit()
+    print(f"[generate] generated {total_tx:,} tx + {total_items:,} items", file=sys.stderr)
 
     # Bump sequences so future inserts don't collide with our explicit IDs.
     with conn.cursor() as cur:
