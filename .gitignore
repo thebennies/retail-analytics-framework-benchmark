@@ -87,3 +87,9 @@ results/raw/
 database/postgresql.conf
 docker/docker-compose.override.yml
 .k6-cpuset
+
+# Dashboard
+dashboard/node_modules/
+dashboard/.svelte-kit/
+dashboard/build/
+dashboard/.vite/
