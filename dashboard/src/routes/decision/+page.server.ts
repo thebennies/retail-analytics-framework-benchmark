@@ -24,8 +24,8 @@ export async function load({ url }: { url: URL }) {
       }));
       recommended = scored[0]?.framework ?? '';
     }
-  } catch {
-    // db may be empty or run not found
+  } catch (e) {
+    console.error('[decision] error loading framework rows:', e);
   }
 
   // Get available concurrency levels for this run

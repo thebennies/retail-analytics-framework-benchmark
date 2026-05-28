@@ -76,7 +76,7 @@ def _coerce(v):
         return v.isoformat()
     if isinstance(v, (int, float, str, bool)):
         return v
-    return str(v)
+    raise TypeError(f"Unhandled PG type in _coerce: {type(v).__name__} = {v!r}")
 
 
 def _rows_to_jsonable(rows: list[asyncpg.Record]) -> list[dict]:

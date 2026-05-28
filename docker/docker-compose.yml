@@ -55,7 +55,7 @@ services:
     container_name: bench-fastapi
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-bench}:${POSTGRES_PASSWORD:-bench}@pgbouncer:5432/${POSTGRES_DB:-benchmark}
-      FASTAPI_PORT: ${FASTAPI_PORT:-8001}
+      FASTAPI_PORT: ${FASTAPI_PORT:-8001}  # only used by host port mapping; app always binds 8001
       POOL_MIN: ${FASTAPI_POOL_MIN:-5}
       POOL_MAX: ${FASTAPI_POOL_MAX:-25}
       SERVICE_WORKERS: ${FASTAPI_WORKERS:-4}

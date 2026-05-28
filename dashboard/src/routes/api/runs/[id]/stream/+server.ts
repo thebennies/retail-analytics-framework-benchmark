@@ -50,7 +50,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
             controller.close();
           }
         } catch (e) {
-          // Keep going on error
+          console.error('[SSE] poll error:', e);
         }
       }, 2000);
 

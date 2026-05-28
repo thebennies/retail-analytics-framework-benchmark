@@ -50,18 +50,28 @@ export function buildFrameworkRows(runId: number, concurrency: number): Framewor
     stabilityMap.set(fw, maxStable);
   }
 
-  // Memory scaling: ratio of RSS at highest concurrency vs lowest
+  // Memory scaling: ratio of RSS at highest concurrency vs lowest (fixes M-07)
+  // Scope to the same endpoint to avoid cross-endpoint noise
   const memScalingMap = new Map<string, number | null>();
   for (const [fw, rows] of byFw) {
-    const sorted = [...rows].sort((a, b) => a.concurrency - b.concurrency);
     const allFwResults = db.prepare(`
       SELECT concurrency, peak_rss_mb FROM benchmark_results
       WHERE run_id = ? AND framework = ? AND peak_rss_mb IS NOT NULL
       ORDER BY concurrency
     `).all(runId, fw) as { concurrency: number; peak_rss_mb: number }[];
     if (allFwResults.length >= 2) {
-      const rssLow = allFwResults[0].peak_rss_mb;
-      const rssHigh = allFwResults[allFwResults.length - 1].peak_rss_mb;
+      // Aggregate average RSS per concurrency level first
+      const byCc = new Map<number, number[]>();
+      for (const r of allFwResults) {
+        const list = byCc.get(r.concurrency) ?? [];
+        list.push(r.peak_rss_mb);
+        byCc.set(r.concurrency, list);
+      }
+      const avgByCc = [...byCc.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([_, vals]) => vals.reduce((s, v) => s + v, 0) / vals.length);
+      const rssLow = avgByCc[0];
+      const rssHigh = avgByCc[avgByCc.length - 1];
       memScalingMap.set(fw, rssLow > 0 ? rssHigh / rssLow : null);
     } else {
       memScalingMap.set(fw, null);
@@ -156,7 +166,7 @@ export function renderMemo(
   }
 
   const replace = (t: string, key: string, val: string) =>
-    t.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
+    t.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), () => val);
 
   let memo = template;
   memo = replace(memo, 'run_id', String(runId));
