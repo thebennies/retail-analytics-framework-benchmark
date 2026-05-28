@@ -59,8 +59,13 @@ export const GET: RequestHandler = async ({ params, request }) => {
         clearInterval(interval);
         try { controller.close(); } catch {}
       };
-      // Note: request.signal may not be available in all adapters
+      // Wire abort handler to request.signal (adapter-node exposes it)
+      request.signal.addEventListener('abort', abortHandler);
     },
+    cancel() {
+      // Called when stream is cancelled
+    },
+  });
   });
 
   return new Response(stream, {
