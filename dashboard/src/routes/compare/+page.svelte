@@ -126,34 +126,46 @@
     <div class="brut-card"><canvas bind:this={rssCanvas}></canvas></div>
   </div>
 
-  <table class="brut-table">
-    <thead>
-      <tr>
-        <th>FRAMEWORK</th>
-        <th class="num">c</th>
-        <th class="num">RPS</th>
-        <th class="num">p50</th>
-        <th class="num">p95</th>
-        <th class="num">p99</th>
-        <th class="num">ERR%</th>
-        <th class="num">RSS</th>
-      </tr>
-    </thead>
-    <tbody>
-      {#each data.series as s}
-        {#each s.points as p}
-          <tr>
-            <td style="color: {FRAMEWORK_COLOR[s.framework as any] ?? '#888'}">{s.framework}</td>
-            <td class="num">{p.concurrency}</td>
-            <td class="num">{p.rps_sustained?.toFixed(1) ?? '—'}</td>
-            <td class="num">{p.p50_ms?.toFixed(0) ?? '—'}</td>
-            <td class="num">{p.p95_ms?.toFixed(0) ?? '—'}</td>
-            <td class="num">{p.p99_ms?.toFixed(0) ?? '—'}</td>
-            <td class="num">{p.error_rate_pct?.toFixed(1) ?? '—'}</td>
-            <td class="num">{p.peak_rss_mb?.toFixed(1) ?? '—'} MB</td>
-          </tr>
+  <div class="brut-table-wrap">
+    <table class="brut-table-auto">
+      <colgroup>
+        <col style="width: 100px" />
+        <col style="width: 60px" />
+        <col style="width: 70px" />
+        <col style="width: 60px" />
+        <col style="width: 60px" />
+        <col style="width: 60px" />
+        <col style="width: 60px" />
+        <col style="width: 80px" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>FW</th>
+          <th class="num">c</th>
+          <th class="num">RPS</th>
+          <th class="num">p50</th>
+          <th class="num">p95</th>
+          <th class="num">p99</th>
+          <th class="num">ERR%</th>
+          <th class="num">RSS MB</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each data.series as s}
+          {#each s.points as p}
+            <tr>
+              <td style="color: {FRAMEWORK_COLOR[s.framework as any] ?? '#888'}">{s.framework}</td>
+              <td class="num">{p.concurrency}</td>
+              <td class="num">{p.rps_sustained?.toFixed(1) ?? '—'}</td>
+              <td class="num">{p.p50_ms?.toFixed(0) ?? '—'}</td>
+              <td class="num">{p.p95_ms?.toFixed(0) ?? '—'}</td>
+              <td class="num">{p.p99_ms?.toFixed(0) ?? '—'}</td>
+              <td class="num">{p.error_rate_pct?.toFixed(1) ?? '—'}</td>
+              <td class="num">{p.peak_rss_mb?.toFixed(1) ?? '—'}</td>
+            </tr>
+          {/each}
         {/each}
-      {/each}
-    </tbody>
-  </table>
+      </tbody>
+    </table>
+  </div>
 {/if}

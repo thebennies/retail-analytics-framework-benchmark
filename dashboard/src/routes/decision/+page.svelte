@@ -99,13 +99,14 @@
 
   <!-- Scored table -->
   <div class="brut-eyebrow mb-2">WEIGHTED SCORES</div>
-  <table class="brut-table mb-8">
+  <div class="brut-table-wrap mb-8">
+    <table class="brut-table-auto">
     <thead>
       <tr>
-        <th>FRAMEWORK</th>
-        <th class="num">TOTAL</th>
+        <th>FW</th>
+        <th class="num">SCORE</th>
         {#each Object.keys(DIMENSION_LABELS) as dim}
-          <th class="num text-xs">{(DIMENSION_LABELS as any)[dim]}</th>
+          <th class="num">{(DIMENSION_LABELS as any)[dim].split(' ')[0]}</th>
         {/each}
       </tr>
     </thead>
@@ -115,12 +116,15 @@
           <td class="font-bold" style="color: {FRAMEWORK_COLOR[s.framework as any] ?? '#888'}">{s.framework}</td>
           <td class="num font-bold text-acid">{s.weighted_total.toFixed(1)}</td>
           {#each Object.entries(s.dimensions) as [dim, d]}
-            <td class="num">{(d as any).score.toFixed(0)} <span class="text-bone-dimmer">({(d as any).raw ?? '—'})</span></td>
+            <td class="num" title="raw: {(d as any).raw ?? '—'}">
+              <span class="{(d as any).score >= 90 ? 'text-acid' : (d as any).score >= 50 ? 'text-bone' : 'text-bone-dimmer'}">{(d as any).score.toFixed(0)}</span>
+            </td>
           {/each}
         </tr>
       {/each}
     </tbody>
-  </table>
+    </table>
+  </div>
 
   <div class="brut-card-accent-green mb-8">
     <div class="brut-stat-label mb-1">RECOMMENDED</div>

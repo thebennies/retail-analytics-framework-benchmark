@@ -59,26 +59,35 @@
     <canvas bind:this={rssCanvas}></canvas>
   </div>
 
-  <table class="brut-table mt-8">
-    <thead>
-      <tr>
-        <th>FRAMEWORK</th>
-        <th>ENDPOINT</th>
-        <th class="num">c</th>
-        <th class="num">PEAK RSS</th>
-        <th class="num">AVG RSS</th>
-      </tr>
-    </thead>
+  <div class="brut-table-wrap">
+    <table class="brut-table-auto">
+      <colgroup>
+        <col style="width: 100px" />
+        <col />
+        <col style="width: 60px" />
+        <col style="width: 100px" />
+        <col style="width: 100px" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>FW</th>
+          <th>ENDPOINT</th>
+          <th class="num">c</th>
+          <th class="num">PEAK MB</th>
+          <th class="num">AVG MB</th>
+        </tr>
+      </thead>
     <tbody>
       {#each data.results as r}
         <tr>
           <td style="color: {FRAMEWORK_COLOR[r.framework as any] ?? '#888'}">{r.framework}</td>
           <td class="font-mono text-xs">{r.endpoint}</td>
           <td class="num">{r.concurrency}</td>
-          <td class="num">{r.peak_rss_mb?.toFixed(1) ?? '—'} MB</td>
-          <td class="num">{r.avg_rss_mb?.toFixed(1) ?? '—'} MB</td>
+          <td class="num">{r.peak_rss_mb?.toFixed(1) ?? '—'}</td>
+          <td class="num">{r.avg_rss_mb?.toFixed(1) ?? '—'}</td>
         </tr>
       {/each}
-    </tbody>
-  </table>
+      </tbody>
+    </table>
+  </div>
 {/if}

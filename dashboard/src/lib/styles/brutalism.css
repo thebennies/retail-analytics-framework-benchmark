@@ -21,12 +21,39 @@
   .brut-btn[disabled] { @apply opacity-40 cursor-not-allowed; }
   .brut-btn[disabled]:hover { @apply bg-ink-900 text-bone; }
 
-  .brut-table { @apply w-full border-3 border-bone font-mono text-sm; border-collapse: collapse; }
-  .brut-table thead th { @apply bg-ink-700 text-acid uppercase tracking-brut text-xs px-4 py-3 text-left border-b-3 border-bone; }
-  .brut-table tbody td { @apply px-4 py-3 border-b border-ink-500; }
+  /* Table wrapper for horizontal scroll */
+  .brut-table-wrap { @apply overflow-x-auto; }
+
+  .brut-table {
+    @apply w-full border-3 border-bone font-mono text-sm;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .brut-table thead th {
+    @apply bg-ink-700 text-acid uppercase tracking-brut text-xs px-3 py-3 text-left border-b-3 border-bone;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .brut-table tbody td {
+    @apply px-3 py-2 border-b border-ink-500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .brut-table tbody tr:nth-child(even) { @apply bg-ink-800; }
   .brut-table tbody tr:hover { @apply bg-ink-700; }
   .brut-table .num { @apply text-right tabular-nums; }
+
+  /* Auto-sized tables (few cols, wide content) */
+  .brut-table-auto {
+    @apply brut-table;
+    table-layout: auto;
+  }
+
+  /* Condensed variant for dense data */
+  .brut-table-compact tbody td { @apply px-2 py-1; }
+  .brut-table-compact thead th { @apply px-2 py-2; }
 
   .brut-headline { @apply font-display font-bold uppercase tracking-tight text-bone; }
   .brut-eyebrow { @apply font-mono uppercase tracking-brut text-xs text-acid; }
