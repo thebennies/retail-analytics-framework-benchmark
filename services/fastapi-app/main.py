@@ -26,7 +26,10 @@ from fastapi import FastAPI
 
 from queries import QUERIES
 
-DATABASE_URL = os.environ["DATABASE_URL"]
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is required. "
+                       "Set it in docker-compose or .env.")
 POOL_MIN = int(os.environ.get("POOL_MIN", "5"))
 POOL_MAX = int(os.environ.get("POOL_MAX", "25"))
 FRAMEWORK = "fastapi"

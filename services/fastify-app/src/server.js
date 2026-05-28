@@ -14,12 +14,40 @@ const PORT = parseInt(process.env.FASTIFY_PORT || '8002', 10);
 const POOL_MAX = parseInt(process.env.POOL_MAX || '25', 10);
 const POOL_MIN = parseInt(process.env.POOL_MIN || '5', 10);
 
+// Validate env vars (fixes M-36)
+function parseEnvInt(name, val, min, max) {
+  const n = parseInt(val, 10);
+  if (!Number.isFinite(n) || n < min || n > max) {
+    console.error(`[fastify] FATAL: ${name}=${val} must be an integer in [${min}, ${max}]`);
+    process.exit(1);
+  }
+  return n;
+}
+const VALIDATED_WORKERS = parseEnvInt('SERVICE_WORKERS', process.env.SERVICE_WORKERS || '4', 1, 64);
+const VALIDATED_PORT = parseEnvInt('FASTIFY_PORT', process.env.FASTIFY_PORT || '8002', 1, 65535);
+const VALIDATED_POOL_MAX = parseEnvInt('POOL_MAX', process.env.POOL_MAX || '25', 1, 10000);
+const VALIDATED_POOL_MIN = parseEnvInt('POOL_MIN', process.env.POOL_MIN || '5', 0, VALIDATED_POOL_MAX);
+
 if (cluster.isPrimary) {
-  console.log(`[fastify] primary pid=${process.pid} workers=${WORKERS}`);
-  for (let i = 0; i < WORKERS; i++) cluster.fork();
+  console.log(`[fastify] primary pid=${process.pid} workers=${VALIDATED_WORKERS}`);
+  const restartCounts = new Map();
+  const MAX_RESTARTS = 10;
+  const RESTART_WINDOW_MS = 60_000;
+
+  for (let i = 0; i < VALIDATED_WORKERS; i++) cluster.fork();
   cluster.on('exit', (w, code) => {
     console.error(`[fastify] worker ${w.process.pid} exited code=${code}`);
-    cluster.fork();
+    const now = Date.now();
+    const restarts = restartCounts.get(w.id) || [];
+    // Keep only restarts within the window
+    const recent = restarts.filter(t => now - t < RESTART_WINDOW_MS);
+    recent.push(now);
+    restartCounts.set(w.id, recent);
+    if (recent.length > MAX_RESTARTS) {
+      console.error(`[fastify] worker ${w.id} exceeded ${MAX_RESTARTS} restarts in ${RESTART_WINDOW_MS / 1000}s — not reforking`);
+    } else {
+      cluster.fork();
+    }
   });
 } else {
   startWorker();
@@ -49,8 +77,8 @@ async function startWorker() {
   // ── Pool ──
   const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
-    max: POOL_MAX,
-    min: POOL_MIN,
+    max: VALIDATED_POOL_MAX,
+    min: VALIDATED_POOL_MIN,
     // No named prepared statements — PgBouncer transaction mode breaks them.
   });
 
@@ -84,7 +112,11 @@ async function startWorker() {
   async function runSingleQuery(task) {
     const t0 = performance.now();
     const sql = queries.get(task);
-    if (!sql) throw fastify.httpErrors.notFound('query not found: ' + task);
+    if (!sql) {
+      const err = new Error('query not found: ' + task);
+      (err as any).statusCode = 404;
+      throw err;
+    }
     const q0 = performance.now();
     const { rows } = await pool.query(sql);
     return buildResponse(task, t0, q0, rows);
@@ -122,7 +154,11 @@ async function startWorker() {
 
     for (const task of tasks) {
       const sql = queries.get(task);
-      if (!sql) throw fastify.httpErrors.notFound('query not found: ' + task);
+      if (!sql) {
+        const err = new Error('query not found: ' + task);
+        (err as any).statusCode = 404;
+        throw err;
+      }
       const q0 = performance.now();
       const { rows } = await pool.query(sql);
       const qMs = performance.now() - q0;
@@ -148,8 +184,8 @@ async function startWorker() {
 
   // ── Start ──
   try {
-    await fastify.listen({ port: PORT, host: '0.0.0.0' });
-    console.log(`[fastify] worker pid=${process.pid} listening :${PORT}`);
+    await fastify.listen({ port: VALIDATED_PORT, host: '0.0.0.0' });
+    console.log(`[fastify] worker pid=${process.pid} listening :${VALIDATED_PORT}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

@@ -30,4 +30,7 @@ lto = "thin"
 codegen-units = 1
 opt-level = 3
 strip = "symbols"
+# abort on panic: acceptable for a short-lived benchmark binary where a panic
+# indicates a logic bug. A crash here just ends the current benchmark level,
+# which the harness detects via exit code.
 panic = "abort"
