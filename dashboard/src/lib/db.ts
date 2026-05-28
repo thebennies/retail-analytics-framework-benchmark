@@ -64,8 +64,32 @@ function resolveDbPath(): string {
 }
 
 let _db: Database.Database | null = null;
+let _dbWritable: Database.Database | null = null;
 
-export function getDb(): Database.Database {
+export function getDb(writable = false): Database.Database {
+  if (writable) {
+    if (_dbWritable) return _dbWritable;
+    const path = resolveDbPath();
+    if (!existsSync(path)) {
+      throw new Error(`results.db not found at ${path}`);
+    }
+    _dbWritable = new Database(path, { fileMustExist: true });
+    _dbWritable.pragma('journal_mode = WAL');
+    // Ensure active_runs table
+    _dbWritable.prepare(`
+      CREATE TABLE IF NOT EXISTS active_runs (
+        run_id INTEGER PRIMARY KEY REFERENCES benchmark_runs(id),
+        pid INTEGER NOT NULL,
+        log_path TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'running',
+        started_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+        finished_at TEXT,
+        exit_code INTEGER
+      )
+    `).run();
+    return _dbWritable;
+  }
   if (_db) return _db;
   const path = resolveDbPath();
   if (!existsSync(path)) {

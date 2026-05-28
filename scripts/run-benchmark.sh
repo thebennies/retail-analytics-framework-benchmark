@@ -8,6 +8,27 @@
 #   --cooldown    cooldown seconds between levels (default 15)
 set -euo pipefail
 
+# --- Phase 3b: progress markers ---
+PROGRESS_LAST=""
+iso_now() { date -u +'%Y-%m-%dT%H:%M:%S.%3NZ'; }
+emit_progress() {
+  local fw="$1" ep="$2" cc="$3" phase="$4"
+  local line="::progress framework=${fw} endpoint=${ep} concurrency=${cc} phase=${phase} at=$(iso_now)"
+  if [ "${line}" != "${PROGRESS_LAST}" ]; then
+    echo "${line}"
+    PROGRESS_LAST="${line}"
+  fi
+}
+emit_run_finished() {
+  local code="$1"
+  local status="ok"
+  [ "${code}" -ne 0 ] && status="fail"
+  echo "::run_finished run_id=${RUN_ID:-0} status=${status} at=$(iso_now) exit_code=${code}"
+}
+on_exit() { emit_run_finished "$?"; }
+trap on_exit EXIT
+# --- end Phase 3b ---
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 COMPOSE="docker compose -f ${REPO_ROOT}/docker/docker-compose.yml -f ${REPO_ROOT}/docker/docker-compose.override.yml"
@@ -34,6 +55,7 @@ while [ $# -gt 0 ]; do
     --duration)    DURATION_S="$2"; shift 2 ;;
     --warmup)      WARMUP_S="$2"; shift 2 ;;
     --cooldown)    COOLDOWN_S="$2"; shift 2 ;;
+    --run-id)      RUN_ID="$2"; shift 2 ;;
     *)             echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -69,10 +91,13 @@ fi
 IFS=',' read -ra CONC_LEVELS <<< "${CONCURRENCY_ARG}"
 IFS=',' read -ra FRAMEWORK_LIST <<< "${FRAMEWORKS}"
 
-# 5) Open benchmark_runs row.
-NOTES="frameworks=${FRAMEWORKS} endpoints=${ENDPOINTS_ARG} concurrency=${CONCURRENCY_ARG}"
-RUN_ID=$(sqlite3 "${DB_PATH}" "INSERT INTO benchmark_runs (hardware_id, started_at, notes) VALUES (${HARDWARE_ID}, CURRENT_TIMESTAMP, '${NOTES//\'/\'\'}'); SELECT last_insert_rowid();")
-echo "[bench] benchmark_runs id=${RUN_ID}"
+# 5) Open benchmark_runs row (or reuse --run-id).
+if [ -z "${RUN_ID:-}" ]; then
+  NOTES="frameworks=${FRAMEWORKS} endpoints=${ENDPOINTS_ARG} concurrency=${CONCURRENCY_ARG}"
+  RUN_ID=$(sqlite3 "${DB_PATH}" "INSERT INTO benchmark_runs (hardware_id, started_at, notes) VALUES (${HARDWARE_ID}, CURRENT_TIMESTAMP, '${NOTES//\'/\'\'}'); SELECT last_insert_rowid();")
+  echo "[bench] benchmark_runs id=${RUN_ID}"
+fi
+echo "::run_started run_id=${RUN_ID} at=$(iso_now)"
 
 # k6 cpuset.
 K6_CPUSET="$(cat "${REPO_ROOT}/.k6-cpuset" 2>/dev/null || echo '')"
@@ -98,11 +123,13 @@ run_one_level() {
   esac
 
   echo "[bench] === ${framework} ${endpoint} c=${concurrency} ==="
+  emit_progress "${framework}" "${endpoint}" "${concurrency}" "warmup"
 
   # Start RSS sampler in background.
   "${SCRIPT_DIR}/sample-rss.sh" "${container}" "${rss_out}" &
   local sampler_pid=$!
 
+  emit_progress "${framework}" "${endpoint}" "${concurrency}" "measure"
   set +e
   ${TASKSET_PREFIX} k6 run \
     --env "TARGET_URL=${target_url}" \
@@ -117,6 +144,7 @@ run_one_level() {
   kill "${sampler_pid}" 2>/dev/null || true
   wait "${sampler_pid}" 2>/dev/null || true
 
+  emit_progress "${framework}" "${endpoint}" "${concurrency}" "parse"
   # Parse k6 summary JSON + RSS CSV.
   python3 - "${k6_summary}" "${rss_out}" "${DB_PATH}" "${RUN_ID}" "${framework}" "${endpoint}" "${concurrency}" "${DURATION_S}" "${WARMUP_S}" <<'PY'
 import csv, json, sqlite3, sys
@@ -203,6 +231,7 @@ with open(summary_path + ".err_rate", "w") as f:
     f.write(f"{error_rate_pct:.4f}")
 PY
 
+  emit_progress "${framework}" "${endpoint}" "${concurrency}" "cooldown"
   local err_rate
   err_rate="$(cat "${k6_summary}.err_rate" 2>/dev/null || echo 0)"
   rm -f "${k6_summary}.err_rate"

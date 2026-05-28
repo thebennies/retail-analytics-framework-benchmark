@@ -8,6 +8,7 @@
     { href: '/', label: 'Runs' },
     { href: '/compare', label: 'Compare' },
     { href: '/hardware', label: 'Hardware' },
+    { href: '/run', label: 'Run' },
   ];
 
   function isActive(href: string): boolean {
