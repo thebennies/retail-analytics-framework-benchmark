@@ -1,10 +1,10 @@
 # retail-analytics-framework-benchmark
 
-Internal Revota benchmark comparing **FastAPI vs Fastify vs Axum** throughput + memory efficiency on a 10M-row PostgreSQL retail-analytics workload. Output is a **decision memo for stack selection**, not an academic benchmark.
+Benchmark comparing **FastAPI vs Fastify vs Axum** throughput + memory efficiency on a 10M-row PostgreSQL retail-analytics workload. Output is a **decision memo for stack selection**, not an academic benchmark.
 
 ## Status
 
-🚧 In active development. See `.local/plans/00-roadmap.md` (gitignored) for phase progress.
+In active development. Phase 2b complete (all three services scaffolded + parity-verified). Dashboard and decision memo in progress.
 
 ## Disclaimer
 
@@ -26,7 +26,7 @@ Internal Revota benchmark comparing **FastAPI vs Fastify vs Axum** throughput + 
 - Docker Engine (Docker Desktop on Mac/Windows silently no-ops `cpuset`).
 - Ubuntu 24.04 LTS validated; other Linux distros: warn-but-proceed.
 
-`scripts/detect-hardware.sh` (added in Phase 1a) fails fast if preconditions not met.
+`scripts/detect-hardware.sh` fails fast if preconditions not met.
 
 ## Tech stack (pinned)
 
@@ -62,10 +62,176 @@ docker/           docker-compose.yml + overrides
 docs/             METHODOLOGY, CAVEATS, ARCHITECTURE, DECISION_TEMPLATE
 ```
 
-## Usage
+## Setup
 
-Full setup + run instructions land in Phase 1b. For current phase progress see `.local/plans/00-roadmap.md`.
+### Prerequisites
+
+```bash
+# Docker Engine (not Docker Desktop)
+docker --version
+
+# k6
+k6 version
+
+# Python 3.12+ (for parity diff scripts)
+python3 --version
+
+# sqlite3
+sqlite3 --version
+```
+
+### 1. Verify hardware + environment
+
+```bash
+bash scripts/detect-hardware.sh
+```
+
+Fails fast on non-Linux or cgroup v1. Warns on non-Ubuntu 24.
+
+### 2. Initialize results DB
+
+```bash
+bash scripts/init-results-db.sh
+```
+
+Creates `results/results.db` with full schema. Safe to re-run (idempotent).
+
+### 3. Generate PostgreSQL config + CPU pin map
+
+```bash
+bash scripts/generate-postgres-config.sh
+bash scripts/cpu-pin.sh
+```
+
+`cpu-pin.sh` writes `.k6-cpuset` and `.service-cpuset` files used by the benchmark driver to pin processes to separate core groups.
+
+### 4. Start infrastructure
+
+```bash
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml \
+  up -d postgres pgbouncer
+```
+
+Wait for healthchecks to pass (~10s).
+
+### 5. Seed 10M rows
+
+```bash
+docker compose -f docker/docker-compose.yml --profile generator \
+  run --rm generator
+```
+
+Takes ~5–15 minutes depending on hardware.
+
+### 6. Build services
+
+```bash
+# Build all three images
+docker compose -f docker/docker-compose.yml \
+  --profile fastapi --profile fastify --profile axum \
+  build
+```
+
+## Running benchmarks
+
+### Single-framework quick run
+
+```bash
+bash scripts/run-benchmark.sh --frameworks fastapi
+bash scripts/run-benchmark.sh --frameworks fastify
+bash scripts/run-benchmark.sh --frameworks axum
+```
+
+### All frameworks, specific endpoints
+
+```bash
+bash scripts/run-benchmark.sh \
+  --frameworks fastapi,fastify,axum \
+  --endpoints daily-sales,full-summary \
+  --concurrency 10,100,1000
+```
+
+### Full benchmark (all endpoints, all concurrency levels)
+
+```bash
+bash scripts/run-benchmark.sh \
+  --frameworks fastapi,fastify,axum \
+  --endpoints all \
+  --concurrency 10,50,100,500,1000,5000,10000 \
+  --duration 60 \
+  --warmup 10 \
+  --cooldown 15
+```
+
+Flags:
+
+| Flag | Default | Description |
+|---|---|---|
+| `--frameworks` | `fastapi` | Comma-list: `fastapi`, `fastify`, `axum` |
+| `--endpoints` | `all` | `all` or comma-list of endpoint names |
+| `--concurrency` | `10,50,100,500,1000,5000,10000` | VU levels to sweep |
+| `--duration` | `60` | Measure phase seconds |
+| `--warmup` | `10` | Warmup phase seconds |
+| `--cooldown` | `15` | Cooldown between levels |
+
+Results land in `results/results.db` and `results/raw/`.
+
+### Parity check (verify 3-service numerical equality)
+
+```bash
+# Start all three services first
+docker compose -f docker/docker-compose.yml \
+  --profile fastapi --profile fastify --profile axum \
+  up -d
+
+bash scripts/parity-check.sh
+```
+
+Compares JSON responses across all 9 endpoints. Monetary tolerance ±0.01, counts exact. Failures block benchmark runs.
+
+### High-concurrency connection test (before 5K/10K runs)
+
+```bash
+bash scripts/test-connection-limits.sh
+```
+
+Verifies `MAX_CLIENT_CONN=15000`, postgres `max_connections`, and container `ulimit` are correctly set.
+
+## Environment variables
+
+All have working defaults. Override via shell or `.env` file:
+
+| Variable | Default | Description |
+|---|---|---|
+| `POSTGRES_DB` | `benchmark` | Database name |
+| `POSTGRES_USER` | `bench` | DB user |
+| `POSTGRES_PASSWORD` | `bench` | DB password |
+| `PGBOUNCER_POOL_MODE` | `transaction` | PgBouncer pool mode |
+| `PGBOUNCER_DEFAULT_POOL_SIZE` | `100` | Connections per pool |
+| `PGBOUNCER_MAX_CLIENT_CONN` | `15000` | Max client connections |
+| `FASTAPI_PORT` | `8001` | FastAPI host port |
+| `FASTIFY_PORT` | `8002` | Fastify host port |
+| `AXUM_PORT` | `8003` | Axum host port |
+| `BENCH_ERROR_RATE_THRESHOLD` | `0.05` | Max tolerated error rate (fraction) |
+
+## Available endpoints
+
+All services expose `/benchmark/<endpoint>`:
+
+| Endpoint | Description |
+|---|---|
+| `daily-sales` | Aggregate sales by day |
+| `sales-by-location` | Sales grouped by store location |
+| `sales-by-product` | Sales grouped by product |
+| `sales-by-payment` | Sales by payment method |
+| `hourly-sales` | Hourly distribution |
+| `top-products` | Top N products by revenue |
+| `location-product-matrix` | Cross-tab location × product |
+| `discount-impact` | Discount vs non-discount comparison |
+| `full-summary` | All aggregates in one response |
+
+Health check: `GET /health` on each service.
 
 ## License
 
-Internal Revota. Not for redistribution.
+MIT License. See [LICENSE](LICENSE) for full text.
