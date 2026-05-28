@@ -35,3 +35,40 @@ All services connect to PgBouncer via the Docker `bench` bridge. Latency overhea
 ## C-008: Results not reproducible 3+ months later
 
 PostgreSQL minor versions, framework releases, driver updates, kernel patches, and Docker version changes all shift numbers. Snapshot is valid only at the `hardware_runs.detected_at` timestamp with the captured software versions.
+
+## C-009: sqlx NUMERIC -> f64 precision loss (Phase 2a)
+
+PostgreSQL `NUMERIC(14,2)` columns (e.g., `total_amount`, `revenue`) arrive
+in sqlx as `bigdecimal::BigDecimal`. To produce JSON numbers parity-compatible
+with FastAPI's `float(Decimal)`, we convert via `BigDecimal::to_f64()`. This
+introduces IEEE 754 rounding for very large sums (Rp values > ~9 trillion
+lose sub-cent precision). The parity gate tolerates ±0.01 to absorb this.
+For downstream financial reporting use, prefer NUMERIC-as-string and
+parse client-side.
+
+## C-010: sqlx + PgBouncer transaction-pool requires statement-cache discipline (Phase 2a)
+
+sqlx 0.8 caches prepared statements per connection. PgBouncer in
+`pool_mode=transaction` reassigns server connections per transaction, so
+cached statement IDs become stale and `fetch_all` can fail with
+`prepared statement "sqlx_s_<N>" does not exist`. In sqlx 0.8 the
+`statement_cache_capacity` method was removed; the default cache size
+is 100. We use `sqlx::query()` (text protocol, no prepare) which avoids
+this issue entirely. FastAPI's asyncpg sets `statement_cache_size=0` for
+the same reason.
+
+## C-011: tokio worker_threads pinned to cpuset (Phase 2a)
+
+Axum runs single-process with a tokio multi-thread runtime. We pin
+`worker_threads=4` (env-overridable) to match the 4 vCPU cpuset.
+Without this, tokio defaults to `num_cpus::get()` which on a 16-core host
+can add extra runtime threads competing for the pinned cores. Verified
+at startup via tracing log.
+
+## C-012: work_mem=64MB required for location-product-matrix (Phase 2a)
+
+The location-product-matrix query joins transactions + transaction_items +
+products + stores, producing 1000 rows (100 locations × 10 categories).
+With the default `work_mem=16MB`, PostgreSQL fails with "could not resize
+shared memory segment: No space left on device". Bumped to `work_mem=64MB`
+in `generate-postgres-config.sh`.
