@@ -494,13 +494,27 @@ def main() -> int:
     rng = random.Random(args.seed)
 
     with psycopg.connect(args.dsn, autocommit=False) as conn:
-        # Validate-only: if data already loaded and not --reset, just validate.
+        # Check existing state and handle partial load (fixes M-33)
         with conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM transactions")
             existing = cur.fetchone()[0]
+
+        # Full state: validate only
         if existing == TOTAL_TRANSACTIONS and not args.reset:
             print(f"[generate] data already loaded ({existing:,} rows). Validating.")
             return validate(conn)
+
+        # Partial state: detect and auto-reset (fixes M-33)
+        if 0 < existing < TOTAL_TRANSACTIONS:
+            if not args.reset:
+                print(f"[generate] WARNING: partial load detected ({existing:,} / {TOTAL_TRANSACTIONS:,} rows)", file=sys.stderr)
+                print(f"[generate] This indicates a prior run failed mid-load. Auto-resetting...", file=sys.stderr)
+                print(f"[generate] (To skip this, use --reset explicitly)", file=sys.stderr)
+            reset_schema(conn)  # Drops and recreates tables
+
+        # Empty state: proceed with seed/load
+        if args.reset:
+            reset_schema(conn)
 
         if args.reset:
             reset_schema(conn)
