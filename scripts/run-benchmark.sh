@@ -92,7 +92,21 @@ echo "[bench] hardware_runs id=${HARDWARE_ID}"
 # 2) Start postgres + pgbouncer.
 "${REPO_ROOT}/services/fastapi-app/prebuild.sh"
 ${COMPOSE} up -d postgres pgbouncer
-sleep 3
+
+# Wait for pg_isready instead of blind sleep (fixes M-40)
+echo "[bench] waiting for postgres to be ready..."
+for i in $(seq 1 60); do
+  if ${COMPOSE} exec -T postgres pg_isready -U ${POSTGRES_USER:-bench} -d ${POSTGRES_DB:-benchmark} >/dev/null 2>&1; then
+    echo "[bench] postgres ready"
+    break
+  fi
+  if [ "${i}" -eq 60 ]; then
+    echo "FATAL: postgres never became ready" >&2
+    ${COMPOSE} logs postgres | tail -50
+    exit 1
+  fi
+  sleep 1
+done
 
 # 3) Connection-limits gate.
 if echo ",${CONCURRENCY_ARG}," | grep -qE ',(5000|10000),'; then
