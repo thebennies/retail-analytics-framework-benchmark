@@ -46,11 +46,31 @@ export const POST: RequestHandler = async ({ request, url }) => {
 
   const runId = Number(info.lastInsertRowid);
 
+  // Acquire lock atomically BEFORE spawning to prevent race condition
+  let lockAcquired = false;
+  let spawnPid: number | undefined;
+  try {
+    const { acquireRunLockAtomic } = await import('$lib/server/runLock');
+    spawnPid = await acquireRunLockAtomic(runId);
+    lockAcquired = true;
+  } catch (e: any) {
+    // Cleanup on lock failure: remove the preallocated row
+    db.prepare('DELETE FROM benchmark_runs WHERE id = ?').run(runId);
+    return json({ error: e.message }, { status: 409 });
+  }
+
   // Spawn
   try {
     const result = spawnBenchmark(input, runId);
     return json({ run_id: result.runId, pid: result.pid, log_path: result.logPath }, { status: 202 });
   } catch (e: any) {
-    return json({ error: e.message }, { status: 500 });
+    // On post-spawn failure: kill child, release lock, cleanup row
+    if (spawnPid) {
+      try { process.kill(spawnPid, 'SIGKILL'); } catch {}
+    }
+    const { releaseRunLock } = await import('$lib/server/runLock');
+    releaseRunLock();
+    db.prepare('DELETE FROM benchmark_runs WHERE id = ?').run(runId);
+    return json({ error: `Spawn failed: ${e.message}` }, { status: 500 });
   }
 };

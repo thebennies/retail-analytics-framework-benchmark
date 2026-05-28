@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { createWriteStream, mkdirSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { getDb } from '$lib/db';
-import { acquireRunLock, releaseRunLock } from './runLock';
+import { readLock, updateLockPid, releaseRunLock } from './runLock';
 import type { RunInput } from '$lib/shared/runOptions';
 
 export type SpawnResult = {
@@ -40,8 +40,8 @@ export function spawnBenchmark(input: RunInput, preallocatedRunId: number): Spaw
 
   const pid = child.pid!;
 
-  // Acquire lock
-  acquireRunLock(pid, preallocatedRunId);
+  // Update lock with actual PID (caller already acquired it atomically)
+  updateLockPid(pid);
 
   // Insert active_runs row
   const db = getDb(true);
