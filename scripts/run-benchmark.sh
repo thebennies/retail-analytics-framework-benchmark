@@ -67,6 +67,24 @@ mkdir -p "${RAW_DIR}"
 "${SCRIPT_DIR}/cpu-pin.sh"
 "${SCRIPT_DIR}/generate-postgres-config.sh"
 
+# 0.1) Run prebuilds for selected frameworks only (fixes M-03)
+for framework in ${FRAMEWORKS//,/ }; do
+  case "${framework}" in
+    fastapi)
+      "${REPO_ROOT}/services/fastapi-app/prebuild.sh"
+      ;;
+    fastify)
+      "${REPO_ROOT}/services/fastify-app/prebuild.sh"
+      ;;
+    axum)
+      "${REPO_ROOT}/services/axum-app/prebuild.sh"
+      ;;
+    *)
+      echo "WARN: unknown framework '${framework}' for prebuild" >&2
+      ;;
+  esac
+done
+
 # 1) Hardware detection.
 HARDWARE_ID="$("${SCRIPT_DIR}/detect-hardware.sh")"
 echo "[bench] hardware_runs id=${HARDWARE_ID}"
