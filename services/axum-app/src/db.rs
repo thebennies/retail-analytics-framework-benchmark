@@ -9,6 +9,8 @@ use sqlx::{Column, Row, TypeInfo};
 use std::time::Duration;
 
 pub async fn init_pool(database_url: &str, max_connections: u32) -> Result<PgPool> {
+    // Assert pool config is valid (fixes M-19: min must be <= max)
+    assert!(max_connections >= 5, "POOL_MAX ({max_connections}) must be >= min_connections (5)");
     PgPoolOptions::new()
         .max_connections(max_connections)
         .min_connections(5)

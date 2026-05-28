@@ -297,7 +297,7 @@ Dashboard → `/decision` → select run + concurrency → click **Export Memo**
 
 - [k6](https://k6.io/) — load testing
 - [PgBouncer](https://www.pgbouncer.org/) — connection pooling
-- [Chart.js](https://www.chart.js.org/) — dashboard charts
+- [Chart.js](https://www.chartjs.org/) — dashboard charts
 - [SvelteKit](https://kit.svelte.dev/) — dashboard framework
 - [JetBrains Mono](https://www.jetbrains.com/lp/mono/) — monospace font
 - [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) — display font

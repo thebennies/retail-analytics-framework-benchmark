@@ -1,8 +1,7 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { buildOptions } from './_shared-options.js';
+import { buildOptions, TARGET_URL } from './_shared-options.js';
 
-const TARGET_URL = __ENV.TARGET_URL || 'http://localhost:8001';
 const ENDPOINT_PATH = '/benchmark/location-product-matrix';
 
 export const options = buildOptions();

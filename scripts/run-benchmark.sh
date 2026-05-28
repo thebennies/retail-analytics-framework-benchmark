@@ -129,6 +129,8 @@ if [ "${ENDPOINTS_ARG}" = "all" ]; then
   ENDPOINTS=("${ALL_ENDPOINTS[@]}")
 else
   IFS=',' read -ra ENDPOINTS <<< "${ENDPOINTS_ARG}"
+  # Trim whitespace from endpoint names (fixes M-18)
+  ENDPOINTS=($(echo "${ENDPOINTS_ARG}" | tr ',' '\n' | xargs))
 fi
 
 IFS=',' read -ra CONC_LEVELS <<< "${CONCURRENCY_ARG}"
