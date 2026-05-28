@@ -180,95 +180,22 @@ run_one_level() {
   wait "${sampler_pid}" 2>/dev/null || true
 
   emit_progress "${framework}" "${endpoint}" "${concurrency}" "parse"
-  # Parse k6 summary JSON + RSS CSV.
-  python3 - "${k6_summary}" "${rss_out}" "${DB_PATH}" "${RUN_ID}" "${framework}" "${endpoint}" "${concurrency}" "${DURATION_S}" "${WARMUP_S}" <<'PY'
-import csv, json, sqlite3, sys
+  # Parse k6 summary JSON + RSS CSV via external module (fixes M-42)
+  python3 "${SCRIPT_DIR}/parse_k6_summary.py" \
+    "${k6_summary}" "${rss_out}" "${DB_PATH}" "${RUN_ID}" "${framework}" "${endpoint}" "${concurrency}" "${DURATION_S}" "${WARMUP_S}"
 
-(summary_path, rss_path, db_path, run_id, framework, endpoint,
- concurrency, duration_s, warmup_s) = sys.argv[1:]
-
-with open(summary_path) as f:
+  # Write error rate for stop-gate check
+  python3 - "${k6_summary}" <<'PYERR'
+import json, sys
+with open(sys.argv[1]) as f:
     s = json.load(f)
-
 metrics = s.get("metrics", {})
-
-# k6 summary-export puts values directly on the metric object.
-# We REQUIRE measure-tagged submetrics for fair comparison.
-http_reqs_measure = metrics.get("http_reqs{phase:measure}", {})
-http_req_duration_measure = metrics.get("http_req_duration{phase:measure}", {})
 http_req_failed_measure = metrics.get("http_req_failed{phase:measure}", {})
-
-# Fail loudly if measure-tagged submetrics are missing (thresholds not emitted)
-if http_reqs_measure is None or http_req_duration_measure is None:
-    print("[parse] ERROR: measure-phase submetrics not found. k6 thresholds may be misconfigured.", file=sys.stderr)
-    sys.exit(1)
-
-# Use only measure-phase data
-measure_count = int(http_reqs_measure.get("count", 0))
-if measure_count == 0:
-    print("[parse] ERROR: no requests in measure phase", file=sys.stderr)
-    sys.exit(1)
-
-# RPS computed from measure-phase count and duration
-rps = measure_count / float(duration_s)
-total_requests = measure_count  # Store measure-phase count as total
 fail_fraction = http_req_failed_measure.get("value", 0.0)
-total_errors = int(round(fail_fraction * measure_count))
 error_rate_pct = round(fail_fraction * 100, 4)
-
-# Use measure-tagged duration percentiles
-p50 = http_req_duration_measure.get("med", None)
-p95 = http_req_duration_measure.get("p(95)", None)
-p99 = http_req_duration_measure.get("p(99)", None)
-
-# RSS CSV: skip first warmup_s seconds for AVG.
-rss_vals = []
-cpu_vals = []
-try:
-    with open(rss_path) as f:
-        rd = csv.DictReader(f)
-        rows = list(rd)
-    if rows:
-        first_ts = int(rows[0]["ts_epoch"])
-        cutoff = first_ts + int(warmup_s)
-        for r in rows:
-            ts = int(r["ts_epoch"])
-            rss_kb = int(r["rss_kb"])
-            cpu = float(r["cpu_pct"])
-            if ts >= cutoff:
-                rss_vals.append(rss_kb)
-            cpu_vals.append(cpu)
-        peak_rss_mb = max(int(r["rss_kb"]) for r in rows) / 1024.0
-        avg_rss_mb  = (sum(rss_vals) / len(rss_vals) / 1024.0) if rss_vals else None
-        peak_cpu_pct = max(cpu_vals) if cpu_vals else None
-    else:
-        peak_rss_mb = avg_rss_mb = peak_cpu_pct = None
-except Exception:
-    peak_rss_mb = avg_rss_mb = peak_cpu_pct = None
-
-conn = sqlite3.connect(db_path)
-cur = conn.cursor()
-cur.execute("""
-INSERT INTO benchmark_results
-  (run_id, framework, endpoint, concurrency, duration_seconds,
-   rps_sustained, p50_ms, p95_ms, p99_ms,
-   error_rate_pct, total_requests, total_errors,
-   peak_rss_mb, avg_rss_mb, peak_cpu_pct,
-   k6_raw_path, rss_raw_path)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-""", (
-    int(run_id), framework, endpoint, int(concurrency), int(duration_s),
-    rps, p50, p95, p99,
-    error_rate_pct, total_requests, total_errors,
-    peak_rss_mb, avg_rss_mb, peak_cpu_pct,
-    summary_path, rss_path,
-))
-conn.commit()
-print(f"[parse] inserted result rps={rps:.1f} p99={p99} err={error_rate_pct:.2f}% peak_rss={peak_rss_mb}")
-
-with open(summary_path + ".err_rate", "w") as f:
+with open(sys.argv[1] + ".err_rate", "w") as f:
     f.write(f"{error_rate_pct:.4f}")
-PY
+PYERR
 
   emit_progress "${framework}" "${endpoint}" "${concurrency}" "cooldown"
   local err_rate
