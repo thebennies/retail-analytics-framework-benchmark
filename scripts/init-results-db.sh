@@ -74,6 +74,17 @@ CREATE TABLE benchmark_results (
 
 CREATE INDEX idx_results_framework_endpoint
   ON benchmark_results(framework, endpoint, concurrency);
+
+CREATE TABLE manual_scores (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id          INTEGER NOT NULL REFERENCES benchmark_runs(id) ON DELETE CASCADE,
+  framework       TEXT NOT NULL,
+  dev_experience_score INTEGER NOT NULL CHECK(dev_experience_score BETWEEN 1 AND 5),
+  notes           TEXT,
+  UNIQUE(run_id, framework)
+);
+
+CREATE INDEX idx_manual_scores_run_id ON manual_scores(run_id);
 SQL
 
 echo "[init-results-db] created ${DB_PATH} with full Phase 1b schema"
