@@ -8,7 +8,7 @@ use axum::response::{IntoResponse, Json as AxumJson};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{db, response::BenchmarkResponse, AppState};
+use crate::{db, response::{self, BenchmarkResponse}, AppState};
 
 // ── /health ──
 
@@ -131,7 +131,7 @@ pub async fn full_summary(
 
     let exec_start = Instant::now();
     let mut query_ms_total: f64 = 0.0;
-    let mut sub_results: Vec<Value> = Vec::with_capacity(tasks.len());
+    let mut sub_results: serde_json::Map<String, Value> = serde_json::Map::with_capacity(tasks.len());
 
     for task in tasks {
         let sql = state
@@ -144,20 +144,24 @@ pub async fn full_summary(
             .fetch_all(&state.pool)
             .await
             .map_err(|e| AppError::internal(format!("sqlx fetch [{task}]: {e}")))?;
-        query_ms_total += elapsed_ms(q_start);
+        let q_ms = elapsed_ms(q_start);
+        query_ms_total += q_ms;
 
         let rows_json =
             db::rows_to_json(&rows).map_err(|e| AppError::internal(e.to_string()))?;
 
-        sub_results.push(serde_json::json!({
-            "task": task,
-            "rows_returned": rows_json.len(),
-            "result": rows_json,
-        }));
+        sub_results.insert(
+            task.to_string(),
+            serde_json::json!({
+                "rows_returned": rows_json.len(),
+                "query_time_ms": response::round3(q_ms),
+                "result": rows_json,
+            }),
+        );
     }
 
     let exec_ms = elapsed_ms(exec_start);
-    Ok(AxumJson(BenchmarkResponse::new(
+    Ok(AxumJson(BenchmarkResponse::new_dict(
         "full-summary",
         exec_ms,
         query_ms_total,

@@ -54,11 +54,15 @@ def diff_row(baseline, candidate, path):
         if is_int_key(k) or is_str_key(k):
             if a != b:
                 diffs.append(f"{path}.{k}: exact mismatch baseline={a!r} candidate={b!r}")
+        elif isinstance(a, str) and isinstance(b, str):
+            if a != b:
+                diffs.append(f"{path}.{k}: string mismatch baseline={a!r} candidate={b!r}")
         else:
             try:
                 fa, fb = float(a), float(b)
             except (TypeError, ValueError):
-                diffs.append(f"{path}.{k}: non-numeric mismatch baseline={a!r} candidate={b!r}")
+                if a != b:
+                    diffs.append(f"{path}.{k}: non-numeric mismatch baseline={a!r} candidate={b!r}")
                 continue
             if math.isnan(fa) or math.isnan(fb):
                 diffs.append(f"{path}.{k}: NaN encountered")
@@ -87,16 +91,15 @@ def diff_result_lists(baseline_rows, candidate_rows, endpoint, path_prefix="resu
     return diffs
 
 
-def diff_full_summary(baseline_rows, candidate_rows):
-    if len(baseline_rows) != len(candidate_rows):
-        return [f"full-summary: sub-task count mismatch baseline={len(baseline_rows)} candidate={len(candidate_rows)}"]
-    baseline_by_task = {r["task"]: r for r in baseline_rows}
-    candidate_by_task = {r["task"]: r for r in candidate_rows}
-    if set(baseline_by_task) != set(candidate_by_task):
-        return [f"full-summary: task set mismatch baseline={sorted(baseline_by_task)} candidate={sorted(candidate_by_task)}"]
+def diff_full_summary(baseline_result, candidate_result):
+    # Both are dicts keyed by task name, each containing rows_returned + result
+    if not isinstance(baseline_result, dict) or not isinstance(candidate_result, dict):
+        return [f"full-summary: expected dict result, got {type(baseline_result).__name__} vs {type(candidate_result).__name__}"]
+    if set(baseline_result.keys()) != set(candidate_result.keys()):
+        return [f"full-summary: task set mismatch baseline={sorted(baseline_result.keys())} candidate={sorted(candidate_result.keys())}"]
     diffs = []
-    for task, b_sub in baseline_by_task.items():
-        c_sub = candidate_by_task[task]
+    for task, b_sub in baseline_result.items():
+        c_sub = candidate_result[task]
         if b_sub["rows_returned"] != c_sub["rows_returned"]:
             diffs.append(f"full-summary.{task}: rows_returned mismatch baseline={b_sub['rows_returned']} candidate={c_sub['rows_returned']}")
             continue
@@ -135,7 +138,8 @@ def main():
         diffs = diff_result_lists(baseline_rows, candidate_rows, args.endpoint)
 
     if not diffs:
-        print(f"[{args.endpoint}] OK ({len(baseline_rows)} rows)")
+        count = len(baseline_rows) if isinstance(baseline_rows, list) else len(baseline_rows.keys())
+        print(f"[{args.endpoint}] OK ({count} rows)")
         return 0
 
     print(f"[{args.endpoint}] FAIL ({len(diffs)} diff(s)):")
