@@ -27,6 +27,8 @@
     "vitest": "^2.1.8"
   },
   "dependencies": {
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
     "better-sqlite3": "^11.5.0",
     "chart.js": "^4.4.6"
   }

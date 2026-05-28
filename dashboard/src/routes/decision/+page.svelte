@@ -1,15 +1,41 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { DIMENSION_LABELS, type Dimension } from '$lib/scoring';
-  import { colorFor } from '$lib/colors';
+  import { FRAMEWORK_COLOR, BRUTALIST_SCALE, BRUTALIST_LEGEND, BRUTALIST_TOOLTIP } from '$lib/charts/palette';
   import { fmtFloat } from '$lib/format';
 
   let { data }: { data: any } = $props();
 
-  async function recompute(params: Record<string, string>) {
-    const u = new URL(window.location.href);
-    for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
-    window.location.search = u.searchParams.toString();
-  }
+  let scatterCanvas: HTMLCanvasElement;
+  let scatterChart: any = null;
+
+  onMount(async () => {
+    if (data.scored.length < 2) return;
+    const { Chart, registerables } = await import('chart.js');
+    Chart.register(...registerables);
+
+    const datasets = data.scored.map((s: any) => ({
+      label: s.framework,
+      data: [{ x: s.dimensions.p99_ms.raw ?? 0, y: s.dimensions.sustained_rps.raw ?? 0, r: 10 }],
+      backgroundColor: FRAMEWORK_COLOR[s.framework as any] ?? '#888',
+      borderColor: '#f5f5f0',
+      borderWidth: 2,
+    }));
+
+    scatterChart = new Chart(scatterCanvas, {
+      type: 'bubble',
+      data: { datasets },
+      options: {
+        responsive: true,
+        animation: { duration: 0 },
+        plugins: { legend: BRUTALIST_LEGEND, tooltip: BRUTALIST_TOOLTIP },
+        scales: {
+          x: { ...BRUTALIST_SCALE, title: { ...BRUTALIST_SCALE.title, display: true, text: 'p99 (ms) — lower →' } },
+          y: { ...BRUTALIST_SCALE, title: { ...BRUTALIST_SCALE.title, display: true, text: 'RPS — higher ↑' } },
+        },
+      },
+    });
+  });
 
   async function saveDevScore(fw: string, score: number) {
     await fetch('/api/decision', {
@@ -29,86 +55,96 @@
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  function recompute(params: Record<string, string>) {
+    const u = new URL(window.location.href);
+    for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+    window.location.search = u.searchParams.toString();
+  }
 </script>
 
 <svelte:head><title>Decision</title></svelte:head>
 
-<h1 class="text-2xl font-bold mb-4">Decision Framework</h1>
+<div class="brut-eyebrow mb-3">03 / DECISION</div>
+<h1 class="brut-headline text-display-lg">Decision</h1>
+<hr class="brut-rule" />
 
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-  <label class="text-sm">
-    Run:
-    <select class="bg-slate-800 text-white px-2 py-1 rounded text-sm w-full"
-      value={data.runId}
+<div class="flex gap-4 mb-8 flex-wrap items-end">
+  <label class="text-sm font-mono text-bone-dim">
+    RUN
+    <select class="brut-input" value={data.runId}
       onchange={(e) => recompute({ runId: (e.target as HTMLSelectElement).value })}>
       {#each data.runs as run}
-        <option value={run.id}>#{run.id} — {run.cpu_model?.slice(0, 30) ?? 'Unknown'} ({run.result_count} results)</option>
+        <option value={run.id}>#{run.id}</option>
       {/each}
     </select>
   </label>
-
-  <label class="text-sm">
-    Concurrency:
-    <select class="bg-slate-800 text-white px-2 py-1 rounded text-sm w-full"
-      value={data.concurrency}
+  <label class="text-sm font-mono text-bone-dim">
+    CONCURRENCY
+    <select class="brut-input" value={data.concurrency}
       onchange={(e) => recompute({ concurrency: (e.target as HTMLSelectElement).value })}>
       {#each data.concLevels as c}
         <option value={c}>c={c}</option>
       {/each}
-      {#if data.concLevels.length === 0}
-        <option value={10}>c=10</option>
-      {/if}
     </select>
   </label>
 </div>
 
 {#if data.scored.length > 0}
-  <h2 class="text-lg font-semibold mb-2">Weighted Scores (default weights)</h2>
-  <table class="mb-6">
+  <!-- Pareto scatter -->
+  <div class="brut-card mb-8">
+    <div class="brut-eyebrow mb-2">PARETO FRONT — RPS vs p99</div>
+    <canvas bind:this={scatterCanvas}></canvas>
+  </div>
+
+  <!-- Scored table -->
+  <div class="brut-eyebrow mb-2">WEIGHTED SCORES</div>
+  <table class="brut-table mb-8">
     <thead>
       <tr>
-        <th>Framework</th>
-        <th class="text-right">Total</th>
+        <th>FRAMEWORK</th>
+        <th class="num">TOTAL</th>
         {#each Object.keys(DIMENSION_LABELS) as dim}
-          <th class="text-right text-xs">{(DIMENSION_LABELS as any)[dim]}</th>
+          <th class="num text-xs">{(DIMENSION_LABELS as any)[dim]}</th>
         {/each}
       </tr>
     </thead>
     <tbody>
       {#each data.scored as s, i}
-        <tr class="{i === 0 ? 'bg-cyan-900/20' : ''}">
-          <td class="font-bold" style="color: {colorFor(s.framework)}">{s.framework}</td>
-          <td class="text-right font-bold">{s.weighted_total.toFixed(1)}</td>
+        <tr class="{i === 0 ? 'bg-ink-700' : ''}">
+          <td class="font-bold" style="color: {FRAMEWORK_COLOR[s.framework as any] ?? '#888'}">{s.framework}</td>
+          <td class="num font-bold text-acid">{s.weighted_total.toFixed(1)}</td>
           {#each Object.entries(s.dimensions) as [dim, d]}
-            <td class="text-right font-mono text-xs">{(d as any).score.toFixed(0)} <span class="text-slate-600">({(d as any).raw ?? '—'})</span></td>
+            <td class="num">{(d as any).score.toFixed(0)} <span class="text-bone-dimmer">({(d as any).raw ?? '—'})</span></td>
           {/each}
         </tr>
       {/each}
     </tbody>
   </table>
 
-  <div class="bg-green-900/20 border border-green-600 rounded p-3 mb-6">
-    <strong>Recommended:</strong> <span class="font-bold" style="color: {colorFor(data.recommended)}">{data.recommended}</span>
+  <div class="brut-card-accent-green mb-8">
+    <div class="brut-stat-label mb-1">RECOMMENDED</div>
+    <div class="brut-stat-value text-acid">{data.recommended}</div>
   </div>
 
-  <!-- Dev experience inputs -->
-  <h2 class="text-lg font-semibold mb-2">Dev Experience (1-5)</h2>
-  <div class="flex gap-4 mb-6 flex-wrap">
+  <!-- Dev experience -->
+  <div class="brut-eyebrow mb-2">DEV EXPERIENCE (1-5)</div>
+  <div class="flex gap-4 mb-8">
     {#each data.scored as s}
-      {@const fw = s.framework}
-      <label class="text-sm flex items-center gap-2">
-        <span style="color: {colorFor(fw)}">{fw}</span>
+      <label class="flex items-center gap-2 font-mono text-xs">
+        <span style="color: {FRAMEWORK_COLOR[s.framework as any] ?? '#888'}">{s.framework}</span>
         <input type="number" min="1" max="5" step="1"
-          onchange={(e) => saveDevScore(fw, Number((e.target as HTMLInputElement).value))}
-          class="bg-slate-800 text-white px-2 py-1 rounded text-sm w-16" />
+          onchange={(e) => saveDevScore(s.framework, Number((e.target as HTMLInputElement).value))}
+          class="brut-input w-16" />
       </label>
     {/each}
   </div>
 
-  <button onclick={handleExport}
-    class="bg-cyan-600 hover:bg-cyan-500 px-6 py-2 rounded font-semibold text-white">
-    Export Decision Memo (.md)
+  <button onclick={handleExport} class="brut-btn-green">
+    ↓ EXPORT MEMO.MD
   </button>
 {:else}
-  <p class="text-slate-400">No data for run #{data.runId} at c={data.concurrency}. Try different parameters.</p>
+  <div class="brut-card brut-hatch">
+    <p class="font-mono text-sm text-bone-dim">No data for run #{data.runId} at c={data.concurrency}.</p>
+  </div>
 {/if}

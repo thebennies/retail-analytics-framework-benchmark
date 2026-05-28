@@ -16,15 +16,16 @@
 
 <svelte:head><title>Run #{data.run.id}</title></svelte:head>
 
-<h1 class="text-2xl font-bold mb-2">Run #{data.run.id}</h1>
-<p class="text-sm text-slate-400 mb-4">
-  {fmtDate(data.run.started_at)} · {data.run.cpu_model ?? 'Unknown CPU'} ·
-  {data.run.cpu_cores} cores · {fmtInt(data.run.total_ram_mb)} MB RAM
+<h1 class="brut-headline text-display-lg">Run #{data.run.id}</h1>
+<p class="font-mono text-sm text-bone-dim mb-2">
+  {fmtDate(data.run.started_at)} · {data.run.cpu_model ?? 'Unknown'} · {data.run.cpu_cores} cores
 </p>
+<a href="/runs/{data.run.id}/memory" class="brut-link text-sm">→ MEMORY DETAIL</a>
+<hr class="brut-rule" />
 
 {#each frameworks as fw}
-  <h2 class="text-lg font-semibold mt-6 mb-2 capitalize">{fw}</h2>
-  <table>
+  <h2 class="brut-headline text-display-md mt-6 mb-2">{fw}</h2>
+  <table class="brut-table">
     <thead>
       <tr>
         <th>Endpoint</th>

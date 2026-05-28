@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { colorFor } from '$lib/colors';
+  import { FRAMEWORK_COLOR } from '$lib/charts/palette';
 
   let { data }: { data: any } = $props();
 
@@ -50,24 +50,26 @@
 
 <svelte:head><title>Run Benchmark</title></svelte:head>
 
-<h1 class="text-2xl font-bold mb-4">Run Benchmark</h1>
+<div class="brut-eyebrow mb-3">04 / TRIGGER</div>
+<h1 class="brut-headline text-display-lg">Run</h1>
+<hr class="brut-rule" />
 
 {#if data.activeRun}
-  <div class="bg-amber-900/30 border border-amber-600 rounded p-3 mb-4 text-sm">
-    ⚠️ A benchmark is already running (run_id={data.activeRun.runId}).
-    <a href="/run/{data.activeRun.runId}" class="text-cyan-400">View status →</a>
+  <div class="brut-card-accent-green mb-6">
+    <span class="text-warn font-mono text-sm">⚠ RUN IN PROGRESS (#{data.activeRun.runId})</span>
+    <a href="/run/{data.activeRun.runId}" class="brut-link text-sm ml-4">VIEW →</a>
   </div>
 {/if}
 
-<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-6">
+<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-8">
   <!-- Frameworks -->
   <div>
-    <h2 class="text-lg font-semibold mb-2">Frameworks</h2>
+    <div class="brut-eyebrow mb-2">FRAMEWORKS</div>
     <div class="flex gap-4 flex-wrap">
       {#each data.frameworks as fw}
-        <label class="inline-flex items-center gap-2">
+        <label class="inline-flex items-center gap-2 font-mono text-sm">
           <input type="checkbox" bind:group={selectedFrameworks} value={fw} />
-          <span style="color: {colorFor(fw)}">{fw}</span>
+          <span style="color: {FRAMEWORK_COLOR[fw as any] ?? '#888'}">{fw}</span>
         </label>
       {/each}
     </div>
@@ -75,19 +77,19 @@
 
   <!-- Endpoints -->
   <div>
-    <h2 class="text-lg font-semibold mb-2">Endpoints</h2>
-    <label class="inline-flex items-center gap-2 mb-2 text-sm text-slate-400">
+    <div class="brut-eyebrow mb-2">ENDPOINTS</div>
+    <label class="inline-flex items-center gap-2 mb-2 font-mono text-xs text-bone-dim">
       <input type="checkbox" checked={allEndpoints} onchange={() => {
         selectedEndpoints = allEndpoints ? [] : [...data.endpoints];
       }} />
-      Select all
+      SELECT ALL
     </label>
     <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
       {#each data.endpoints as ep}
-        <label class="inline-flex items-center gap-2 text-sm">
+        <label class="inline-flex items-center gap-2 font-mono text-xs">
           <input type="checkbox" checked={selectedEndpoints.includes(ep)}
             onchange={() => toggleEndpoint(ep)} />
-          <span class="font-mono">{ep}</span>
+          {ep}
         </label>
       {/each}
     </div>
@@ -95,33 +97,37 @@
 
   <!-- Concurrency -->
   <div>
-    <h2 class="text-lg font-semibold mb-2">Concurrency levels</h2>
+    <div class="brut-eyebrow mb-2">CONCURRENCY</div>
     <div class="flex gap-3 flex-wrap">
       {#each data.concurrencyLevels as c}
-        <label class="inline-flex items-center gap-2">
+        <label class="inline-flex items-center gap-2 font-mono text-sm">
           <input type="checkbox" bind:group={selectedConcurrency} value={c} />
-          <span class="font-mono">{c}</span>
+          {c}
         </label>
       {/each}
     </div>
   </div>
 
   <!-- Estimate -->
-  <div class="bg-slate-800 rounded p-3 text-sm">
-    <strong>{selectedFrameworks.length} × {selectedEndpoints.length} × {selectedConcurrency.length}</strong>
-    = {selectedFrameworks.length * selectedEndpoints.length * selectedConcurrency.length} combos
-    · estimated <strong>{estMin} min</strong>
+  <div class="brut-card">
+    <span class="font-mono text-sm">
+      {selectedFrameworks.length} × {selectedEndpoints.length} × {selectedConcurrency.length}
+      = <span class="text-acid font-bold">{selectedFrameworks.length * selectedEndpoints.length * selectedConcurrency.length}</span> combos
+      · est <span class="text-zap font-bold">{estMin} min</span>
+    </span>
   </div>
 
   {#if error}
-    <div class="bg-red-900/30 border border-red-600 rounded p-3 text-sm">{error}</div>
+    <div class="brut-card" style="border-color: #ff2e6c;">
+      <span class="text-bad font-mono text-sm">{error}</span>
+    </div>
   {/if}
 
   <button
     type="submit"
     disabled={submitting || !selectedFrameworks.length || !selectedEndpoints.length || !selectedConcurrency.length}
-    class="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-2 rounded font-semibold text-white"
+    class="brut-btn-green"
   >
-    {submitting ? 'Starting...' : 'Run Benchmark'}
+    {submitting ? 'STARTING...' : '▶ RUN BENCHMARK'}
   </button>
 </form>

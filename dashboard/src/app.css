@@ -1,23 +1,21 @@
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/700.css';
+@import '@fontsource/space-grotesk/500.css';
+@import '@fontsource/space-grotesk/700.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  html,
-  body {
-    @apply bg-slate-950 text-slate-100;
-  }
-  a {
-    @apply text-cyan-400 hover:text-cyan-300 underline-offset-2;
-  }
-  table {
-    @apply w-full text-sm border-collapse;
-  }
-  th,
-  td {
-    @apply text-left px-3 py-2 border-b border-slate-800;
-  }
-  th {
-    @apply text-slate-400 font-medium uppercase tracking-wide text-xs;
-  }
+@import './lib/styles/brutalism.css';
+
+html, body {
+  background: #0a0a0a;
+  color: #f5f5f0;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
 }
+* { border-radius: 0 !important; }
+::selection { background: #5cff00; color: #0a0a0a; }

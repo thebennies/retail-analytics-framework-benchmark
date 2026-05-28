@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fmtDate, fmtInt } from '$lib/format';
+  import { fmtDate } from '$lib/format';
   import type { RunWithHardware } from '$lib/db';
 
   let { data }: { data: { runs: RunWithHardware[] } } = $props();
@@ -7,31 +7,35 @@
 
 <svelte:head><title>Benchmark Runs</title></svelte:head>
 
-<h1 class="text-2xl font-bold mb-4">Benchmark Runs</h1>
+<div class="brut-eyebrow mb-3">01 / OVERVIEW</div>
+<h1 class="brut-headline text-display-lg">Runs</h1>
+<hr class="brut-rule" />
 
 {#if data.runs.length === 0}
-  <p class="text-slate-400">No runs found. Run a benchmark first.</p>
+  <div class="brut-card brut-hatch">
+    <p class="font-mono text-sm text-bone-dim">No runs found. Trigger one from /run.</p>
+  </div>
 {:else}
-  <table>
+  <table class="brut-table">
     <thead>
       <tr>
         <th>ID</th>
-        <th>Started</th>
+        <th>STARTED</th>
         <th>CPU</th>
-        <th>Cores</th>
-        <th>RAM</th>
-        <th>Results</th>
+        <th class="num">CORES</th>
+        <th class="num">RAM</th>
+        <th class="num">RESULTS</th>
       </tr>
     </thead>
     <tbody>
       {#each data.runs as run}
         <tr>
-          <td><a href="/runs/{run.id}">#{run.id}</a></td>
+          <td><a href="/runs/{run.id}" class="brut-link">#{run.id}</a></td>
           <td class="font-mono text-xs">{fmtDate(run.started_at)}</td>
           <td class="text-xs">{run.cpu_model ?? '—'}</td>
-          <td>{fmtInt(run.cpu_cores)}</td>
-          <td>{fmtInt(run.total_ram_mb)} MB</td>
-          <td>{run.result_count}</td>
+          <td class="num">{run.cpu_cores ?? '—'}</td>
+          <td class="num">{run.total_ram_mb?.toLocaleString() ?? '—'} MB</td>
+          <td class="num">{run.result_count}</td>
         </tr>
       {/each}
     </tbody>

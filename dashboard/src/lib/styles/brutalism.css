@@ -1,0 +1,42 @@
+@layer components {
+  .brut-card { @apply bg-ink-800 border-3 border-bone p-6; position: relative; }
+  .brut-card-accent-green { @apply bg-ink-800 border-3 border-acid p-6; position: relative; }
+  .brut-card-accent-cyan { @apply bg-ink-800 border-3 border-zap p-6; position: relative; }
+
+  .brut-card::before, .brut-card::after,
+  .brut-card-accent-green::before, .brut-card-accent-green::after,
+  .brut-card-accent-cyan::before, .brut-card-accent-cyan::after {
+    content: ''; position: absolute; width: 14px; height: 14px;
+    border: 3px solid currentColor;
+  }
+  .brut-card::before { top: -3px; left: -3px; border-right: none; border-bottom: none; }
+  .brut-card::after  { bottom: -3px; right: -3px; border-left: none; border-top: none; }
+
+  .brut-btn { @apply inline-flex items-center gap-2 px-5 py-3 border-3 border-bone bg-ink-900 text-bone font-mono font-bold tracking-brut uppercase text-sm transition-colors duration-75; }
+  .brut-btn:hover { @apply bg-bone text-ink-900; }
+  .brut-btn-green { @apply brut-btn border-acid text-acid; }
+  .brut-btn-green:hover { @apply bg-acid text-ink-900; }
+  .brut-btn-cyan { @apply brut-btn border-zap text-zap; }
+  .brut-btn-cyan:hover { @apply bg-zap text-ink-900; }
+  .brut-btn[disabled] { @apply opacity-40 cursor-not-allowed; }
+  .brut-btn[disabled]:hover { @apply bg-ink-900 text-bone; }
+
+  .brut-table { @apply w-full border-3 border-bone font-mono text-sm; border-collapse: collapse; }
+  .brut-table thead th { @apply bg-ink-700 text-acid uppercase tracking-brut text-xs px-4 py-3 text-left border-b-3 border-bone; }
+  .brut-table tbody td { @apply px-4 py-3 border-b border-ink-500; }
+  .brut-table tbody tr:nth-child(even) { @apply bg-ink-800; }
+  .brut-table tbody tr:hover { @apply bg-ink-700; }
+  .brut-table .num { @apply text-right tabular-nums; }
+
+  .brut-headline { @apply font-display font-bold uppercase tracking-tight text-bone; }
+  .brut-eyebrow { @apply font-mono uppercase tracking-brut text-xs text-acid; }
+  .brut-stat-value { @apply font-mono font-bold tabular-nums text-bone text-4xl; }
+  .brut-stat-label { @apply font-mono uppercase tracking-brut text-xs text-bone-dimmer; }
+  .brut-rule { @apply border-0 border-t-3 border-bone my-8; }
+  .brut-link { @apply text-zap underline underline-offset-4 decoration-3 hover:bg-zap hover:text-ink-900; }
+  .brut-input { @apply bg-ink-900 border-3 border-bone px-3 py-2 font-mono text-bone focus:outline-none focus:border-acid; }
+
+  .brut-hatch {
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(245,245,240,0.08) 6px, rgba(245,245,240,0.08) 7px);
+  }
+}

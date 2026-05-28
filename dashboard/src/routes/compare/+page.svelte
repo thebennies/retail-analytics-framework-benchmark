@@ -1,17 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { colorFor } from '$lib/colors';
-  import { fmtFloat } from '$lib/format';
+  import { FRAMEWORK_COLOR, lineDatasetDefaults, BRUTALIST_SCALE, BRUTALIST_LEGEND, BRUTALIST_TOOLTIP } from '$lib/charts/palette';
 
   let { data }: { data: any } = $props();
 
-  let rpsChart: any = null;
-  let p99Chart: any = null;
-  let rssChart: any = null;
-
   let rpsCanvas: HTMLCanvasElement;
-  let p99Canvas: HTMLCanvasElement;
+  let latencyCanvas: HTMLCanvasElement;
   let rssCanvas: HTMLCanvasElement;
+  let rpsChart: any = null;
+  let latencyChart: any = null;
+  let rssChart: any = null;
 
   onMount(async () => {
     const { Chart, registerables } = await import('chart.js');
@@ -23,128 +21,139 @@
 
     const makeDatasets = (field: string) =>
       data.series.map((s: any) => ({
+        ...lineDatasetDefaults(s.framework as any),
         label: s.framework,
         data: s.points.map((p: any) => p[field]),
-        borderColor: colorFor(s.framework),
-        backgroundColor: colorFor(s.framework) + '33',
-        tension: 0.3,
-        fill: false,
       }));
 
-    const commonOpts = {
+    const commonOpts = (title: string) => ({
       responsive: true,
-      plugins: { legend: { labels: { color: '#cbd5e1' } } },
-      scales: {
-        x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
-        y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+      animation: { duration: 0 },
+      plugins: {
+        legend: BRUTALIST_LEGEND,
+        tooltip: BRUTALIST_TOOLTIP,
+        title: { display: true, text: title, color: '#f5f5f0', font: { family: 'JetBrains Mono', size: 14, weight: 700 } },
       },
-    };
+      scales: {
+        x: { ...BRUTALIST_SCALE },
+        y: { ...BRUTALIST_SCALE },
+      },
+    });
 
     if (labels.length > 0) {
       rpsChart = new Chart(rpsCanvas, {
         type: 'line',
         data: { labels, datasets: makeDatasets('rps_sustained') },
-        options: { ...commonOpts, plugins: { ...commonOpts.plugins, title: { display: true, text: 'RPS (sustained)', color: '#e2e8f0' } } },
+        options: commonOpts('SUSTAINED RPS'),
       });
 
-      p99Chart = new Chart(p99Canvas, {
+      // p50/p95/p99 grouped bar chart
+      const latencyDs: any[] = [];
+      for (const s of data.series) {
+        for (const [metric, label] of [['p50_ms', 'p50'], ['p95_ms', 'p95'], ['p99_ms', 'p99']] as const) {
+          latencyDs.push({
+            ...lineDatasetDefaults(s.framework as any),
+            label: `${s.framework} ${label}`,
+            data: s.points.map((p: any) => p[metric]),
+            borderWidth: metric === 'p99_ms' ? 3 : 1,
+          });
+        }
+      }
+      latencyChart = new Chart(latencyCanvas, {
         type: 'line',
-        data: { labels, datasets: makeDatasets('p99_ms') },
-        options: { ...commonOpts, plugins: { ...commonOpts.plugins, title: { display: true, text: 'p99 latency (ms)', color: '#e2e8f0' } } },
+        data: { labels, datasets: latencyDs },
+        options: commonOpts('LATENCY (ms) — p50 / p95 / p99'),
       });
 
       rssChart = new Chart(rssCanvas, {
         type: 'line',
         data: { labels, datasets: makeDatasets('peak_rss_mb') },
-        options: { ...commonOpts, plugins: { ...commonOpts.plugins, title: { display: true, text: 'Peak RSS (MB)', color: '#e2e8f0' } } },
+        options: commonOpts('PEAK RSS (MB)'),
       });
     }
   });
-
-  function setParam(key: string, value: string) {
-    const u = new URL(data.endpoint ? `?endpoint=${data.endpoint}` : '/', window.location.origin);
-    u.searchParams.set('endpoint', data.endpoint);
-    u.searchParams.set('frameworks', data.frameworks.join(','));
-    if (key === 'endpoint') u.searchParams.set('endpoint', value);
-    if (key === 'frameworks') u.searchParams.set('frameworks', value);
-    window.location.search = u.searchParams.toString();
-  }
 </script>
 
 <svelte:head><title>Compare Frameworks</title></svelte:head>
 
-<h1 class="text-2xl font-bold mb-4">Compare Frameworks</h1>
+<div class="brut-eyebrow mb-3">02 / COMPARE</div>
+<h1 class="brut-headline text-display-lg">Compare</h1>
+<hr class="brut-rule" />
 
-<div class="flex gap-4 mb-6 flex-wrap">
-  <label class="text-sm">
-    Endpoint:
-    <select class="bg-slate-800 text-white px-2 py-1 rounded text-sm" value={data.endpoint}
-      onchange={(e) => setParam('endpoint', (e.target as HTMLSelectElement).value)}>
+<div class="flex gap-4 mb-8 flex-wrap">
+  <label class="text-sm font-mono text-bone-dim">
+    ENDPOINT:
+    <select class="brut-input" value={data.endpoint}
+      onchange={(e) => {
+        const u = new URL(window.location.href);
+        u.searchParams.set('endpoint', (e.target as HTMLSelectElement).value);
+        window.location.search = u.searchParams.toString();
+      }}>
       {#each data.endpoints as ep}
         <option value={ep}>{ep}</option>
       {/each}
     </select>
   </label>
 
-  <label class="text-sm flex items-center gap-2">
-    Frameworks:
+  <span class="flex items-center gap-3">
     {#each data.allFrameworks as fw}
-      <label class="inline-flex items-center gap-1">
+      <label class="inline-flex items-center gap-1 font-mono text-xs">
         <input type="checkbox" checked={data.frameworks.includes(fw)}
           onchange={() => {
             const next = data.frameworks.includes(fw)
               ? data.frameworks.filter((f: string) => f !== fw)
               : [...data.frameworks, fw];
-            if (next.length > 0) setParam('frameworks', next.join(','));
+            if (next.length > 0) {
+              const u = new URL(window.location.href);
+              u.searchParams.set('frameworks', next.join(','));
+              window.location.search = u.searchParams.toString();
+            }
           }} />
-        <span style="color: {colorFor(fw)}">{fw}</span>
+        <span style="color: {FRAMEWORK_COLOR[fw as any] ?? '#888'}">{fw}</span>
       </label>
     {/each}
-  </label>
+  </span>
 </div>
 
 {#if data.series.length === 0 || data.series.every((s: any) => s.points.length === 0)}
-  <p class="text-slate-400">No data for endpoint <code class="text-cyan-400">{data.endpoint}</code>. Run a benchmark first.</p>
+  <div class="brut-card brut-hatch">
+    <p class="font-mono text-sm text-bone-dim">No data for endpoint <span class="text-zap">{data.endpoint}</span>.</p>
+  </div>
 {:else}
-  <div class="grid grid-cols-1 gap-6">
-    <div class="bg-slate-900 rounded p-4">
-      <canvas bind:this={rpsCanvas}></canvas>
-    </div>
-    <div class="bg-slate-900 rounded p-4">
-      <canvas bind:this={p99Canvas}></canvas>
-    </div>
-    <div class="bg-slate-900 rounded p-4">
-      <canvas bind:this={rssCanvas}></canvas>
-    </div>
+  <div class="grid grid-cols-1 gap-8 mb-8">
+    <div class="brut-card"><canvas bind:this={rpsCanvas}></canvas></div>
+    <div class="brut-card"><canvas bind:this={latencyCanvas}></canvas></div>
+    <div class="brut-card"><canvas bind:this={rssCanvas}></canvas></div>
   </div>
 
-  <div class="mt-6">
-    <h2 class="text-lg font-semibold mb-2">Raw data</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Framework</th>
-          <th class="text-right">c</th>
-          <th class="text-right">RPS</th>
-          <th class="text-right">p99 (ms)</th>
-          <th class="text-right">Err %</th>
-          <th class="text-right">Peak RSS</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each data.series as s}
-          {#each s.points as p}
-            <tr>
-              <td style="color: {colorFor(s.framework)}">{s.framework}</td>
-              <td class="text-right">{p.concurrency}</td>
-              <td class="text-right">{fmtFloat(p.rps_sustained, 1)}</td>
-              <td class="text-right">{fmtFloat(p.p99_ms, 0)}</td>
-              <td class="text-right">{fmtFloat(p.error_rate_pct, 1)}</td>
-              <td class="text-right">{fmtFloat(p.peak_rss_mb, 1)} MB</td>
-            </tr>
-          {/each}
+  <table class="brut-table">
+    <thead>
+      <tr>
+        <th>FRAMEWORK</th>
+        <th class="num">c</th>
+        <th class="num">RPS</th>
+        <th class="num">p50</th>
+        <th class="num">p95</th>
+        <th class="num">p99</th>
+        <th class="num">ERR%</th>
+        <th class="num">RSS</th>
+      </tr>
+    </thead>
+    <tbody>
+      {#each data.series as s}
+        {#each s.points as p}
+          <tr>
+            <td style="color: {FRAMEWORK_COLOR[s.framework as any] ?? '#888'}">{s.framework}</td>
+            <td class="num">{p.concurrency}</td>
+            <td class="num">{p.rps_sustained?.toFixed(1) ?? '—'}</td>
+            <td class="num">{p.p50_ms?.toFixed(0) ?? '—'}</td>
+            <td class="num">{p.p95_ms?.toFixed(0) ?? '—'}</td>
+            <td class="num">{p.p99_ms?.toFixed(0) ?? '—'}</td>
+            <td class="num">{p.error_rate_pct?.toFixed(1) ?? '—'}</td>
+            <td class="num">{p.peak_rss_mb?.toFixed(1) ?? '—'} MB</td>
+          </tr>
         {/each}
-      </tbody>
-    </table>
-  </div>
+      {/each}
+    </tbody>
+  </table>
 {/if}

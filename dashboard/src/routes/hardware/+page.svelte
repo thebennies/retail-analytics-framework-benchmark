@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fmtDate, fmtInt } from '$lib/format';
+  import { fmtDate } from '$lib/format';
   import type { HardwareRun } from '$lib/db';
 
   let { data }: { data: { hardware: (HardwareRun & { run_count: number })[] } } = $props();
@@ -7,22 +7,25 @@
 
 <svelte:head><title>Hardware</title></svelte:head>
 
-<h1 class="text-2xl font-bold mb-4">Hardware Profiles</h1>
+<div class="brut-eyebrow mb-3">05 / HARDWARE</div>
+<h1 class="brut-headline text-display-lg">Hardware</h1>
+<hr class="brut-rule" />
 
 {#if data.hardware.length === 0}
-  <p class="text-slate-400">No hardware profiles recorded.</p>
+  <div class="brut-card brut-hatch">
+    <p class="font-mono text-sm text-bone-dim">No hardware profiles recorded.</p>
+  </div>
 {:else}
-  <table>
+  <table class="brut-table">
     <thead>
       <tr>
         <th>ID</th>
-        <th>Detected</th>
+        <th>DETECTED</th>
         <th>CPU</th>
-        <th>Cores / Threads</th>
-        <th>RAM</th>
-        <th>Kernel</th>
-        <th>Docker</th>
-        <th>Runs</th>
+        <th class="num">CORES</th>
+        <th class="num">RAM</th>
+        <th>KERNEL</th>
+        <th>RUNS</th>
       </tr>
     </thead>
     <tbody>
@@ -31,11 +34,10 @@
           <td>#{hw.id}</td>
           <td class="font-mono text-xs">{fmtDate(hw.detected_at)}</td>
           <td class="text-xs">{hw.cpu_model ?? '—'}</td>
-          <td>{hw.cpu_cores}/{hw.cpu_threads}</td>
-          <td>{fmtInt(hw.total_ram_mb)} MB</td>
+          <td class="num">{hw.cpu_cores}/{hw.cpu_threads}</td>
+          <td class="num">{hw.total_ram_mb?.toLocaleString() ?? '—'} MB</td>
           <td class="font-mono text-xs">{hw.kernel_version ?? '—'}</td>
-          <td class="font-mono text-xs">{hw.docker_version ?? '—'}</td>
-          <td>{hw.run_count}</td>
+          <td class="num">{hw.run_count}</td>
         </tr>
       {/each}
     </tbody>
