@@ -60,6 +60,14 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# Validate RUN_ID is an integer (fixes M-22: prevents SQL injection via --run-id)
+if [ -n "${RUN_ID:-}" ]; then
+  if ! echo "${RUN_ID}" | grep -qE '^[0-9]+$'; then
+    echo "FATAL: --run-id must be an integer, got: ${RUN_ID}" >&2
+    exit 2
+  fi
+fi
+
 mkdir -p "${RAW_DIR}"
 
 # 0) Init results.db + regenerate configs.

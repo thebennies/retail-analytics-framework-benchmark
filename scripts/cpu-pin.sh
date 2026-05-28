@@ -69,9 +69,9 @@ services:
   fastify:
     cpuset: "${SVC_CPUSET}"
     mem_limit: 2g
+# All three service cpuset entries emitted unconditionally (base compose
+# defines all three services). The active service is selected via --profile.
 YAML
-
-# fastify added to override when it appears in base compose (Phase 2b).
 
 echo "${K6_CPUSET}" > "${REPO_ROOT}/.k6-cpuset"
 echo "[cpu-pin] wrote ${OVERRIDE_FILE}"

@@ -50,7 +50,7 @@ docker compose -f "${COMPOSE_FILE}" up -d postgres pgbouncer
 
 log "pg_prewarm transactions + transaction_items"
 docker compose -f "${COMPOSE_FILE}" exec -T postgres psql -U bench -d benchmark -c \
-  "SELECT pg_prewarm('transactions'); SELECT pg_prewarm('transaction_items');" >/dev/null 2>&1 || true
+  "SELECT pg_prewarm('transactions'); SELECT pg_prewarm('transaction_items');" >/dev/null 2>&1
 
 # Stop any running services
 for fw in "${FRAMEWORKS[@]}"; do

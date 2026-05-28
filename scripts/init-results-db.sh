@@ -25,6 +25,8 @@ if [ -f "${DB_PATH}" ]; then
 fi
 
 sqlite3 "${DB_PATH}" <<'SQL'
+PRAGMA foreign_keys = ON;
+
 CREATE TABLE hardware_runs (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   detected_at     TIMESTAMP NOT NULL,
