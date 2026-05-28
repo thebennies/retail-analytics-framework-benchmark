@@ -72,3 +72,39 @@ products + stores, producing 1000 rows (100 locations × 10 categories).
 With the default `work_mem=16MB`, PostgreSQL fails with "could not resize
 shared memory segment: No space left on device". Bumped to `work_mem=64MB`
 in `generate-postgres-config.sh`.
+
+## C-013: Node.js cluster shared-socket round-robin (Phase 2b)
+
+Fastify runs 4 workers via Node.js `cluster` module, all binding to port 8002.
+The primary process holds the socket and round-robins connections to workers.
+Under low concurrency (c < workers), some workers may receive zero requests
+while others handle multiples. This differs from FastAPI (uvicorn pre-fork with
+SO_REUSEPORT) and Axum (single-process tokio runtime with 4 threads). At c ≥ 10
+the distribution normalizes. Benchmark results at c=2 should be interpreted
+with this in mind — per-request variance may be higher for Fastify.
+
+## C-014: node-postgres INT8 returned as string by default (Phase 2b)
+
+By default, node-postgres returns BIGINT (OID 20) values as strings to avoid
+JavaScript's Number precision loss above 2^53. We override the type parser
+to `parseInt(val, 10)` for parity with FastAPI (Python int) and Axum (i64).
+This is safe because our largest count values (~10M) are well within JS
+safe integer range. Databases with BIGINT values > Number.MAX_SAFE_INTEGER
+would need a different approach (e.g., BigInt or string passthrough).
+
+## C-015: node-postgres NUMERIC returned as string by default (Phase 2b)
+
+PostgreSQL NUMERIC(14,2) columns arrive in node-postgres as strings (e.g.,
+"1234567.89"). We override OID 1700 to `parseFloat(val)`, matching FastAPI's
+`float(Decimal)` and Axum's `BigDecimal::to_f64()`. Same IEEE 754 precision
+caveat as C-009: values > ~9 trillion Rp lose sub-cent precision. The parity
+gate tolerates ±0.01.
+
+## C-016: Fastify RSS includes V8 heap + compiled code cache (Phase 2b)
+
+Fastify's peak RSS of ~52MB at c=2 is notably higher than FastAPI (~29MB) and
+Axum (~6MB). This is expected: Node.js V8 reserves a substantial heap even at
+idle (default ~1.5GB address space, ~40MB RSS baseline for a loaded script).
+The RSS metric includes V8's compiled code cache, internal parsers, and the
+cluster module's IPC buffers. It does NOT indicate a memory leak. For
+memory-constrained deployments, `--max-old-space-size` can cap the V8 heap.
