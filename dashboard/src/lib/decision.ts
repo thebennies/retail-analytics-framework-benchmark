@@ -37,12 +37,15 @@ export function buildFrameworkRows(runId: number, concurrency: number): Framewor
     WHERE run_id = ? ORDER BY framework, concurrency
   `).all(runId) as { framework: string; concurrency: number; error_rate_pct: number | null }[];
 
+  // Read error rate threshold from environment (same as BENCH_ERROR_RATE_THRESHOLD in run-benchmark.sh)
+  const errThresholdPct = parseFloat(process.env.BENCH_ERROR_RATE_THRESHOLD || '0.05') * 100;
+
   const stabilityMap = new Map<string, number>();
   for (const [fw, rows] of Object.entries(
     Object.groupBy(allResults, r => r.framework)
   )) {
     const maxStable = (rows ?? [])
-      .filter(r => (r.error_rate_pct ?? 0) < 1)
+      .filter(r => (r.error_rate_pct ?? 0) <= errThresholdPct)
       .sort((a, b) => b.concurrency - a.concurrency)[0]?.concurrency ?? 0;
     stabilityMap.set(fw, maxStable);
   }
