@@ -24,8 +24,10 @@ Each (framework, endpoint, concurrency) level runs:
    This is the window we report.
 3. **Cooldown** — 15 seconds idle between levels.
 
-k6 emits a JSON stream (`--out json=...`). Our parser keeps only points
-whose `data.tags.phase == "measure"`.
+k6 emits a `--summary-export` JSON with aggregate metrics per scenario tag.
+Our parser (`scripts/parse_k6_summary.py`) reads only `{phase:measure}` submetrics;
+these are emitted because `_shared-options.js` defines permissive thresholds on them.
+The parser fails loudly if submetrics are absent.
 
 ## Closed-loop VU model
 

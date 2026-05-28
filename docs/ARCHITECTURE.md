@@ -14,7 +14,7 @@ Three HTTP services (FastAPI, Fastify, Axum) expose identical read-only analytic
 │  ┌──────────┬──────────┬──────┬────────────────────────────┐     │
 │  │postgres  │pgbouncer │  k6  │ service (fastapi/fastify/  │     │
 │  │cores 0-1 │ core 2   │core 3│ axum, one at a time)       │     │
-│  │          │          │      │ cores 4-7 (4 vCPU)          │     │
+│  │          │          │      │ cores HALF..MAX (pinned)   │     │
 │  └──────────┴──────────┴──────┴────────────────────────────┘     │
 │                                                                   │
 │  ┌──────────┐   ┌──────────┐   ┌──────────┐                     │
@@ -87,34 +87,37 @@ Three HTTP services (FastAPI, Fastify, Axum) expose identical read-only analytic
 
 ## Database
 
-### Schema (5 tables)
+### Schema (4 tables)
 
 ```
-stores (100 rows)
+locations (100 rows)
 ├── id, name, city, region
 
 products (1,000 rows)
-├── id, sku, name, category, unit_price
+├── id, sku, name, category, base_price
+
+payment_methods (4 rows)
+├── id, name
 
 transactions (10,000,000 rows)
-├── id, store_id→stores, transaction_date, hour_of_day,
-│   payment_method, total_amount, discount_amount,
-│   cart_size, is_weekend, is_holiday
+├── id, transaction_time, location_id→locations,
+│   payment_method_id→payment_methods,
+│   total_amount, total_discount, item_count
 │
 └── transaction_items (16,200,000 rows)
-    ├── transaction_id→transactions, product_id→products,
-    └── quantity, unit_price, discount_pct
+    ├── id, transaction_id→transactions, product_id→products,
+    └── quantity, unit_price, line_discount, subtotal
 ```
 
 ### Indexes (7)
 
-- `idx_transactions_date` on `transactions(transaction_date)`
-- `idx_transactions_store` on `transactions(store_id)`
-- `idx_transactions_payment` on `transactions(payment_method)`
-- `idx_items_product` on `transaction_items(product_id)`
-- `idx_items_transaction` on `transaction_items(transaction_id)`
-- `idx_products_category` on `products(category)`
-- `idx_stores_region` on `stores(region)`
+- `idx_tx_time` on `transactions(transaction_time)`
+- `idx_tx_location` on `transactions(location_id)`
+- `idx_tx_payment` on `transactions(payment_method_id)`
+- `idx_tx_loc_time` on `transactions(location_id, transaction_time)`
+- `idx_txi_transaction` on `transaction_items(transaction_id)`
+- `idx_txi_product` on `transaction_items(product_id)`
+- `idx_txi_prod_tx` on `transaction_items(product_id, transaction_id)`
 
 ### PgBouncer
 
@@ -144,7 +147,7 @@ See [METHODOLOGY.md](METHODOLOGY.md) for warmup/measure semantics and metric cap
 
 ## Parity gate
 
-`scripts/parity-check.sh` captures all 9 endpoints from each framework and diffs the JSON output:
+`scripts/parity-check.sh` captures all 8 named endpoints plus the composite `full-summary` from each framework and diffs the JSON output:
 
 - **Count fields**: exact match required
 - **Monetary fields** (NUMERIC→float): ±0.01 tolerance

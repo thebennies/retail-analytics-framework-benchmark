@@ -5,7 +5,7 @@ export const ENDPOINTS = [
   'daily-sales', 'sales-by-location', 'sales-by-product', 'sales-by-payment',
   'hourly-sales', 'top-products', 'location-product-matrix', 'discount-impact', 'full-summary',
 ] as const;
-export const CONCURRENCY_LEVELS = [2, 10, 50, 100, 500, 1000] as const;
+export const CONCURRENCY_LEVELS = [10, 50, 100, 500, 1000, 5000, 10000] as const;
 
 export type RunInput = {
   frameworks: string[];
