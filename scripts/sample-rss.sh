@@ -15,7 +15,18 @@ if [ "${PID}" = "0" ] || [ -z "${PID}" ]; then
   exit 1
 fi
 
-CG_DIR="$(grep -m1 memory /proc/${PID}/cgroup 2>/dev/null | cut -d: -f3 || echo "")"
+# Parse cgroup v2 0:: unified path (fixes M-44)
+# Fallback to v1 'memory' controller if v2 not available
+CG_LINE="$(grep -m1 '0::.*memory' /proc/${PID}/cgroup 2>/dev/null || grep -m1 'memory' /proc/${PID}/cgroup 2>/dev/null || echo '')"
+if [ -z "${CG_LINE}" ]; then
+  echo "FATAL: cannot find memory cgroup for PID ${PID}" >&2
+  exit 1
+fi
+CG_DIR="$(echo "${CG_LINE}" | cut -d: -f3 || echo '')"
+if [ -z "${CG_DIR}" ]; then
+  echo "FATAL: cannot parse cgroup directory from line: ${CG_LINE}" >&2
+  exit 1
+fi
 
 cleanup() { exit 0; }
 trap cleanup TERM INT
@@ -30,7 +41,8 @@ while true; do
     RSS_BYTES=$(cat "/sys/fs/cgroup${CG_DIR}/memory.current")
     RSS_KB=$(( RSS_BYTES / 1024 ))
   else
-    RSS_KB=$(awk '/VmRSS/{print $2}' "/proc/${PID}/status" 2>/dev/null || echo 0)
+    echo "FATAL: cannot read /sys/fs/cgroup${CG_DIR}/memory.current" >&2
+    exit 1
   fi
 
   CPU_STAT_PATH="/sys/fs/cgroup${CG_DIR}/cpu.stat"
