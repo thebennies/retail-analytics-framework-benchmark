@@ -1,6 +1,7 @@
 # Bench Dashboard
 
 Read-only SvelteKit dashboard for benchmark results stored in `results/results.db`.
+Runs **natively on the host** (NOT in docker-compose).
 
 ## Quick start
 
@@ -42,6 +43,21 @@ Open http://localhost:3000
 |---|---|---|
 | `DB_PATH` | `../results/results.db` (from CWD) | Path to SQLite results database |
 | `PORT` | `3000` | HTTP listen port |
+
+**Important:** Start from the repo root so `results/results.db` resolves correctly:
+```bash
+cd <repo-root>
+PORT=3000 node dashboard/build/index.js
+```
+
+## Run trigger
+
+The "Run Benchmark" button on `/run` spawns `scripts/run-benchmark.sh` via
+Node `child_process.spawn`. Progress is streamed via SSE (`/api/runs/[id]/stream`)
+with a 2-second polling fallback. The dashboard needs filesystem access to the
+repo root for this to work.
+
+For production use, consider `pm2 start build/index.js` or a systemd unit.
 
 ## Development
 

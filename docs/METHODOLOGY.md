@@ -2,7 +2,8 @@
 
 This document covers HOW we measure: what each metric captures, how the
 load test is structured, and what the known noise sources are. Pair with
-`docs/CAVEATS.md` for known limitations.
+`docs/CAVEATS.md` for known limitations. Key caveats: C-002 (k6 CPU sharing),
+C-003 (PgBouncer pool ceiling), C-005 (warm cache only), C-007 (Docker bridge).
 
 ## What `execution_time_ms` vs `query_time_ms` measures
 

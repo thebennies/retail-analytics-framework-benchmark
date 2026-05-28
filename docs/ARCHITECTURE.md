@@ -151,7 +151,8 @@ See [METHODOLOGY.md](METHODOLOGY.md) for warmup/measure semantics and metric cap
 - **String fields**: exact match
 - **Full-summary**: dict-of-sub-tasks compared recursively
 
-See [CAVEATS.md](CAVEATS.md) for precision tradeoffs.
+See [CAVEATS.md](CAVEATS.md) for precision tradeoffs. Key cross-refs: C-002 (k6 CPU sharing), C-003 (PgBouncer ceiling), C-007 (Docker bridge latency).
+See [METHODOLOGY.md](METHODOLOGY.md) for warmup/measure semantics and metric capture details.
 
 ## Results storage
 

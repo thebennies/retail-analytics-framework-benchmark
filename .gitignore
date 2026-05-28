@@ -21,7 +21,6 @@ node_modules/
 dist/
 .vite/
 .svelte-kit/
-package-lock.json
 
 # ============================================
 # Fastify (Node.js backend)
@@ -52,7 +51,6 @@ env/
 # ============================================
 target/
 **/*.rs.bk
-Cargo.lock
 
 # ============================================
 # Testing / Coverage

@@ -4,7 +4,7 @@ Benchmark comparing **FastAPI vs Fastify vs Axum** throughput + memory efficienc
 
 ## Status
 
-In active development. Phase 2b complete (all three services scaffolded + parity-verified). Dashboard and decision memo in progress.
+Phase 3d complete. All three services scaffolded + parity-verified. Dashboard with decision memo export operational.
 
 ## Disclaimer
 
@@ -36,7 +36,7 @@ In active development. Phase 2b complete (all three services scaffolded + parity
 | Connection pool | PgBouncer (edoburu image) | 1.22+ |
 | Service 1 | FastAPI + uvicorn + asyncpg | Python 3.12 |
 | Service 2 | Fastify + pg | Node.js 22 LTS, Fastify 5.x |
-| Service 3 | Axum + sqlx | Rust stable, axum 0.7+, sqlx 0.7+ |
+| Service 3 | Axum + sqlx | Rust stable, axum 0.7+, sqlx 0.8+ |
 | Load generator | k6 (native install) | latest stable |
 | Dashboard | SvelteKit + Tailwind + Chart.js (native install) | SvelteKit 2.x |
 | Results storage | SQLite | bundled |
@@ -235,3 +235,14 @@ Health check: `GET /health` on each service.
 ## License
 
 MIT License. See [LICENSE](LICENSE) for full text.
+
+## Documentation
+
+- [docs/RUNBOOK.md](docs/RUNBOOK.md) — operational checklist for reproducing on new hardware
+- [docs/RESULTS.md](docs/RESULTS.md) — current benchmark snapshot
+- [docs/CHANGELOG.md](docs/CHANGELOG.md) — phase-by-phase timeline
+- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — how to add a new framework comparison
+- [docs/METHODOLOGY.md](docs/METHODOLOGY.md) — measurement methodology
+- [docs/CAVEATS.md](docs/CAVEATS.md) — known limitations (C-001..C-016)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system topology
+- [docs/DECISION_TEMPLATE.md](docs/DECISION_TEMPLATE.md) — decision memo template
