@@ -56,6 +56,9 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-bench}:${POSTGRES_PASSWORD:-bench}@pgbouncer:5432/${POSTGRES_DB:-benchmark}
       FASTAPI_PORT: ${FASTAPI_PORT:-8001}
+      POOL_MIN: ${FASTAPI_POOL_MIN:-5}
+      POOL_MAX: ${FASTAPI_POOL_MAX:-25}
+      SERVICE_WORKERS: ${FASTAPI_WORKERS:-4}
     ports:
       - "${FASTAPI_PORT:-8001}:8001"
     networks: [bench]

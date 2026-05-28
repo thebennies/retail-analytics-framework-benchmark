@@ -106,13 +106,31 @@ def _envelope(task: str, exec_ms: float, query_ms: float,
 @app.get("/health")
 async def health() -> dict:
     pool: asyncpg.Pool = app.state.pool
+    workers = int(os.environ.get("SERVICE_WORKERS", 4))
+    pool_max = pool.get_max_size()
+    pool_min = pool.get_min_size()
+    total_pool = workers * pool_max
+
+    # Assert pool sum invariant (fixes M-28)
+    if total_pool != 100:
+        return {
+            "status": "error",
+            "framework": FRAMEWORK,
+            "error": f"Pool configuration invalid: {workers} workers × pool_max={pool_max} = {total_pool}, expected 100",
+            "uvicorn_workers": workers,
+            "db_pool_min_per_worker": pool_min,
+            "db_pool_max_per_worker": pool_max,
+            "total_client_pool": total_pool,
+        }
+
     return {
         "status": "ok",
         "framework": FRAMEWORK,
-        "db_pool_max_per_worker": pool.get_max_size(),
-        "db_pool_min_per_worker": pool.get_min_size(),
-        "uvicorn_workers_expected": 4,
-        "total_client_pool_target": 4 * pool.get_max_size(),
+        "uvicorn_workers": workers,
+        "db_pool_min_per_worker": pool_min,
+        "db_pool_max_per_worker": pool_max,
+        "total_client_pool": total_pool,
+        "pgbouncer_pool_size_assertion": "PASS" if total_pool == 100 else "FAIL",
     }
 
 

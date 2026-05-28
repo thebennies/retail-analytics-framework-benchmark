@@ -85,8 +85,8 @@ for framework in ${FRAMEWORKS//,/ }; do
   esac
 done
 
-# 1) Hardware detection.
-HARDWARE_ID="$("${SCRIPT_DIR}/detect-hardware.sh")"
+# 1) Hardware detection (postgres_version captured after infra healthy - fixes M-43)
+HARDWARE_ID="$("${SCRIPT_DIR}/detect-hardware.sh" --no-postgres)"
 echo "[bench] hardware_runs id=${HARDWARE_ID}"
 
 # 2) Start postgres + pgbouncer.
@@ -107,6 +107,9 @@ for i in $(seq 1 60); do
   fi
   sleep 1
 done
+
+# Capture postgres_version now that infra is healthy (fixes M-43)
+"${SCRIPT_DIR}/capture-postgres-version.sh" "${HARDWARE_ID}"
 
 # 3) Connection-limits gate.
 if echo ",${CONCURRENCY_ARG}," | grep -qE ',(5000|10000),'; then

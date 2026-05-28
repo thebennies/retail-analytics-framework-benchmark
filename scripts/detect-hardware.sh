@@ -3,6 +3,12 @@
 # non-Ubuntu-24; inserts a row into hardware_runs and prints the new id.
 set -euo pipefail
 
+NO_POSTGRES=false
+if [ "${1:-}" = "--no-postgres" ]; then
+  NO_POSTGRES=true
+  shift
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DB_PATH="${REPO_ROOT}/results/results.db"
@@ -46,7 +52,12 @@ fi
 
 KERNEL_VERSION="$(uname -r)"
 DOCKER_VERSION="$(docker --version 2>/dev/null | sed 's/^Docker version //; s/,.*//' || echo unknown)"
-POSTGRES_VERSION="$(docker exec bench-postgres postgres -V 2>/dev/null | awk '{print $3}' || echo 'not-running')"
+
+if [ "${NO_POSTGRES}" = true ]; then
+  POSTGRES_VERSION="detecting"
+else
+  POSTGRES_VERSION="$(docker exec bench-postgres postgres -V 2>/dev/null | awk '{print $3}' || echo 'not-running')"
+fi
 
 if command -v systemd-detect-virt >/dev/null 2>&1; then
   HYPERVISOR="$(systemd-detect-virt 2>/dev/null || echo unknown)"
