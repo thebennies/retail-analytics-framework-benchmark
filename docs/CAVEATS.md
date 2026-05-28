@@ -108,3 +108,21 @@ idle (default ~1.5GB address space, ~40MB RSS baseline for a loaded script).
 The RSS metric includes V8's compiled code cache, internal parsers, and the
 cluster module's IPC buffers. It does NOT indicate a memory leak. For
 memory-constrained deployments, `--max-old-space-size` can cap the V8 heap.
+
+## C-017: query_time_ms asymmetry across frameworks (Phase 2+)
+
+The `query_time_ms` field in response envelopes is not apples-to-apples across
+frameworks due to driver-side row decoding placement:
+- **FastAPI/asyncpg**: timing wraps `conn.fetch()` only; row decoding happens
+  after the timer, so `query_time_ms` excludes Python-side overhead.
+- **Axum/sqlx**: timing wraps `query.fetch_all()` only; row decoding happens
+  after the timer, so `query_time_ms` excludes Rust-side overhead.
+- **Fastify/node-postgres**: timing starts *before* `pool.query()` (sets `q0`
+  immediately before call), and row decoding happens inside the driver, so
+  `query_time_ms` includes both PostgreSQL round-trip **and** Node.js decoding.
+
+This biases `query_time_ms` against Fastify relative to the other two. The
+headline `execution_time_ms` metric (which includes full request handling) and
+k6's `http_req_duration` are unaffected. Treat `query_time_ms` as informational
+for cross-framework comparison; it's useful for per-framework tuning but not
+for ranking.
