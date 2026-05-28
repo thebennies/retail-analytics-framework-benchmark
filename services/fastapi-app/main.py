@@ -26,10 +26,7 @@ from fastapi import FastAPI
 
 from queries import QUERIES
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL environment variable is required. "
-                       "Set it in docker-compose or .env.")
+DATABASE_URL = os.environ.get("DATABASE_URL") or ""
 POOL_MIN = int(os.environ.get("POOL_MIN", "5"))
 POOL_MAX = int(os.environ.get("POOL_MAX", "25"))
 FRAMEWORK = "fastapi"
@@ -48,6 +45,11 @@ ENDPOINT_TO_QUERY = {
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not DATABASE_URL:
+        raise RuntimeError(
+            "DATABASE_URL environment variable is required. "
+            "Set it in docker-compose or .env."
+        )
     app.state.pool = await asyncpg.create_pool(
         DATABASE_URL,
         min_size=POOL_MIN,
