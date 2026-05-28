@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.7
 
 # Stage 1: builder — cache deps via dummy main, then build real binary
-FROM rust:latest AS builder
+FROM rust:1.82-bookworm AS builder
 
-RUN rustup default stable && rustup update stable
+RUN rustup default stable
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       pkg-config libssl-dev ca-certificates \

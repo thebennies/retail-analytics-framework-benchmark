@@ -4,7 +4,7 @@ networks:
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.4-alpine
     container_name: bench-postgres
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
     environment:
@@ -23,7 +23,7 @@ services:
       retries: 20
 
   pgbouncer:
-    image: edoburu/pgbouncer:latest
+    image: edoburu/pgbouncer:1.23.0
     container_name: bench-pgbouncer
     environment:
       DB_HOST: postgres

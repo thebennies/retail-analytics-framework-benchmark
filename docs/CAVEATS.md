@@ -126,3 +126,18 @@ headline `execution_time_ms` metric (which includes full request handling) and
 k6's `http_req_duration` are unaffected. Treat `query_time_ms` as informational
 for cross-framework comparison; it's useful for per-framework tuning but not
 for ranking.
+
+## C-018: Measurement tool versions pinned (Phase 2+)
+
+To ensure reproducibility (see C-008), measurement-critical tool versions are
+pinned rather than using `latest` tags:
+- PostgreSQL: `16.4-alpine` (was `16-alpine`)
+- PgBouncer: `1.23.0` (was `latest`)
+- Rust builder: `1.82-bookworm` (was `latest` + `rustup update stable`)
+- Node.js: `22-alpine` (pinned by Dockerfile FROM)
+- Fastify: `5.8.5`, pg: `8.21.0` (were caret ranges)
+- FastAPI: already fully pinned in requirements.txt
+
+k6 version should be recorded per run (not containerized, so host-dependent).
+Upgrade versions deliberately with a commit that re-runs the benchmark to
+re-baseline.
