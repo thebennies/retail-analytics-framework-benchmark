@@ -28,7 +28,7 @@ sqlite3 --version
 
 ```bash
 git clone <repo-url>
-cd retail-analytics-framework-benchmark
+cd retail-stack-bench
 cp .env.example .env
 ```
 

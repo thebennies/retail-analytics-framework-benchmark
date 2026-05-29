@@ -1,4 +1,4 @@
-# retail-analytics-framework-benchmark
+# Retail Stack Bench
 
 Benchmark comparing **FastAPI vs Fastify vs Axum** throughput + memory efficiency on a 10M-row PostgreSQL retail-analytics workload. Output is a **decision memo for stack selection**, not an academic benchmark.
 
@@ -159,7 +159,7 @@ sqlite3 --version      # any recent
 
 ```bash
 git clone <repo-url>
-cd retail-analytics-framework-benchmark
+cd retail-stack-bench
 cp .env.example .env
 ```
 

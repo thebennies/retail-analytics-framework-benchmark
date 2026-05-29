@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the retail-analytics-framework-benchmark project.
+All notable changes to the Retail Stack Bench project.
 
 Format: phase-grouped, [Keep a Changelog](https://keepachangelog.com/) flavor.
 
